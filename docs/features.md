@@ -1,6 +1,6 @@
 # Features
 
-The **code-playbook** tab (cc nav label from `conductor.plugin.json`). Also runs standalone at the backend's own URL.
+The **Code Playbook** tab (cc nav label from `conductor.plugin.json`). Also runs standalone at the backend's own URL.
 
 ## List (left column)
 
