@@ -120,6 +120,20 @@ test('CONDUCTOR_URL unset → cc-backed routes answer 503 CONDUCTOR_URL_UNSET; /
   }
 });
 
+test('a malformed CONDUCTOR_URL → 502 CONDUCTOR_UNREACHABLE naming the URL, on reads and writes', async (t) => {
+  for (const bad of ['127.0.0.1:7310', 'not a url']) {
+    await t.test(bad, async (tt) => {
+      const { port } = await bootWithFake(tt, { conductorUrl: bad });
+      for (const [method, p, body] of [['GET', '/api/playbooks'], ['GET', '/api/playbooks/relay'], ['POST', '/api/playbooks/validate', { id: 'x' }], ['PUT', '/api/playbooks/x', { id: 'x' }]]) {
+        const r = await rawRequest(port, method, p, body);
+        assert.equal(r.status, 502, `${method} ${p}: ${r.text}`);
+        assert.equal(r.json.code, 'CONDUCTOR_UNREACHABLE');
+        assert.ok(r.json.error.includes(bad), `the message names ${bad}`);
+      }
+    });
+  }
+});
+
 test('cc unreachable on a read → 502 CONDUCTOR_UNREACHABLE', async (t) => {
   const { port, fake } = await bootWithFake(t);
   await fake.down();

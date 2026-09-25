@@ -26,6 +26,27 @@ const nodeWidth = (label) => Math.min(220, Math.max(110, Math.round(label.length
 const r1 = (n) => Math.round(n * 10) / 10;
 const labelWidth = (text) => Math.ceil(text.length * CHAR_W);
 
+// A next-layer edge: bottom of `a` to top of `b`, fanned out by its index
+// among the edges joining the same pair.
+function forwardCurve(a, b, index, count) {
+  const off = (index - (count - 1) / 2) * 26;
+  const x1 = a.x + a.w / 2 + off; const y1 = a.y + a.h;
+  const x2 = b.x + b.w / 2 + off; const y2 = b.y;
+  return { x1, y1, x2, y2, cx: (x1 + x2) / 2 + off, cy: (y1 + y2) / 2 };
+}
+
+// The largest x the quadratic reaches within half a label's height of `y`.
+function rightmostNear(c, y) {
+  let max = -Infinity;
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40; const u = 1 - t;
+    const px = u * u * c.x1 + 2 * u * t * c.cx + t * t * c.x2;
+    const py = u * u * c.y1 + 2 * u * t * c.cy + t * t * c.y2;
+    if (Math.abs(py - y) <= LABEL_H / 2 + 1) max = Math.max(max, px);
+  }
+  return max;
+}
+
 // The box a label occupies, from its anchor point and text-anchor.
 function labelBox(e) {
   const w = labelWidth(e.label);
@@ -115,13 +136,13 @@ export function layoutGraph(detail) {
       Object.assign(e, { labelX: x + LOOP_REACH - LABEL_GAP, labelY: y + a.h / 2, anchor: 'start' });
     } else if (layer.get(e.to) === layer.get(e.from) + 1 && !e.back) {
       const group = pairs.get(`${e.from}\0${e.to}`);
-      const off = (group.indexOf(e) - (group.length - 1) / 2) * 26;
-      const x1 = a.x + a.w / 2 + off; const y1 = a.y + a.h;
-      const x2 = b.x + b.w / 2 + off; const y2 = b.y;
-      const cx = (x1 + x2) / 2 + off; const cy = (y1 + y2) / 2;
-      e.path = `M ${r1(x1)} ${y1} Q ${r1(cx)} ${cy}, ${r1(x2)} ${y2}`;
-      // Beside the curve's midpoint rather than on it, so the line doesn't strike it through.
-      Object.assign(e, { labelX: r1((x1 + 2 * cx + x2) / 4) + LABEL_GAP + 2, labelY: cy, anchor: 'start' });
+      const c = forwardCurve(a, b, group.indexOf(e), group.length);
+      e.path = `M ${r1(c.x1)} ${c.y1} Q ${r1(c.cx)} ${c.cy}, ${r1(c.x2)} ${c.y2}`;
+      // Beside the pair's curves rather than on them: right of the rightmost
+      // point any curve of this pair reaches within the label's height, so
+      // neither this edge's line nor a parallel one strikes it through.
+      const reach = Math.max(...group.map((p, i) => rightmostNear(forwardCurve(a, b, i, group.length), c.cy)));
+      Object.assign(e, { labelX: r1(reach + LABEL_GAP), labelY: c.cy, anchor: 'start' });
     } else if (layer.get(e.to) === layer.get(e.from)) {
       // Same row: top to top, bowing above the row, so the curve never enters
       // the band the row's boxes occupy. Such edges only point into an entry
@@ -139,8 +160,11 @@ export function layoutGraph(detail) {
       const x1 = r1(a.x + a.w * 0.75); const y1 = a.y + a.h; const g1 = y1 + LANE_INSET;
       const x2 = r1(b.x + b.w * 0.75); const y2 = b.y; const g2 = y2 - LANE_INSET;
       e.path = `M ${x1} ${y1} L ${x1} ${g1} L ${bx} ${g1} L ${bx} ${g2} L ${x2} ${g2} L ${x2} ${y2}`;
+      // Level with a spanned row centre; when both runs share one gap (no row
+      // between them), midway between the runs, clear of both.
       const spanned = centres.filter((c) => c > Math.min(g1, g2) && c < Math.max(g1, g2));
-      Object.assign(e, { labelX: bx + LABEL_GAP, labelY: spanned[Math.floor((spanned.length - 1) / 2)], anchor: 'start' });
+      const labelY = spanned.length ? spanned[Math.floor((spanned.length - 1) / 2)] : (g1 + g2) / 2;
+      Object.assign(e, { labelX: bx + LABEL_GAP, labelY, anchor: 'start' });
       const labelEnd = e.kind === 'transition' ? LABEL_GAP + labelWidth(e.label) : 0;
       edgeRight = bx + labelEnd;
       lane = edgeRight + LANE_GAP;

@@ -50,7 +50,13 @@ function assertNoEdgeCrossesANode(g) {
 
 // No edge's line runs through another edge's label.
 function assertNoLabelCrossed(g) {
-  for (const e of g.edges.filter((x) => x.label)) assert.ok(e.labelBox, `${e.from}->${e.to} has a label box`);
+  for (const e of g.edges.filter((x) => x.label)) {
+    assert.ok(e.labelBox, `${e.from}->${e.to} has a label box`);
+    for (const k of ['x', 'y', 'w', 'h']) assert.ok(Number.isFinite(e.labelBox[k]), `${e.from}->${e.to} labelBox.${k} is finite (${e.labelBox[k]})`);
+    for (const k of ['labelX', 'labelY']) assert.ok(Number.isFinite(e[k]), `${e.from}->${e.to} ${k} is finite (${e[k]})`);
+    const b = e.labelBox;
+    assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= g.width && b.y + b.h <= g.height, `${e.from}->${e.to} label inside the canvas`);
+  }
   for (const e of g.edges.filter((x) => x.labelBox)) {
     for (const other of g.edges) {
       if (other === e) continue;
@@ -160,4 +166,28 @@ test('routed lanes are spaced so no lane crosses an earlier routed edge\'s label
   for (const e of g.edges.filter((x) => x.labelBox)) {
     assert.ok(e.labelBox.x + e.labelBox.w <= g.width, `${e.from}->${e.to} label inside the canvas`);
   }
+});
+
+test('a routed edge whose runs sit in adjacent gaps still gets a finite label inside the canvas', () => {
+  // DFS from a reaches c (needs), then b via c→b, so b→c closes the cycle and is
+  // drawn as a routed back edge whose two runs share the gap between rows 0 and 1.
+  const g = layoutGraph({
+    entryStages: ['a', 'b'],
+    stages: { a: { needs: [] }, b: { needs: [] }, c: { needs: [{ stage: 'a' }] } },
+    transitions: [{ from: 'b', to: 'c', via: 'send_prompt' }, { from: 'c', to: 'b', via: 'approve_plan' }],
+  });
+  assert.ok(g.edges.some((e) => e.back && e.path.includes(' L ')), 'a routed back edge');
+  assertNoEdgeCrossesANode(g);
+  assertNoLabelCrossed(g);
+});
+
+test('a transition and needs between the same pair: the transition label is clear of both curves', () => {
+  const g = layoutGraph({
+    entryStages: ['a'],
+    stages: { a: { needs: [] }, b: { needs: [{ stage: 'a' }, { stage: 'a', position: ['*'] }] } },
+    transitions: [{ from: 'a', to: 'b', via: 'approve_plan' }],
+  });
+  assert.equal(g.edges.filter((e) => e.from === 'a' && e.to === 'b').length, 3);
+  assertNoEdgeCrossesANode(g);
+  assertNoLabelCrossed(g);
 });

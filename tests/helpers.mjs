@@ -10,7 +10,8 @@ import { startFakeConductor } from './fixtures/fakeConductor.mjs';
 export async function bootWithFake(t, { fake: fakeOpts, conductorUrl, projectsRoot } = {}) {
   const fake = await startFakeConductor(fakeOpts);
   const root = projectsRoot === null ? undefined : await fs.mkdtemp(path.join(os.tmpdir(), 'code-playbook-'));
-  const server = createServer({ conductorUrl: conductorUrl === null ? undefined : fake.url, projectsRoot: root });
+  // conductorUrl: omitted → the fake; null → unset; a string → used as given.
+  const server = createServer({ conductorUrl: conductorUrl === undefined ? fake.url : (conductorUrl ?? undefined), projectsRoot: root });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   t.after(async () => {
     server.close();

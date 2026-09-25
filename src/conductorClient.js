@@ -9,7 +9,12 @@ export function createConductorClient({ baseUrl, timeoutMs = 5000 }) {
     if (!baseUrl) throw httpError(503, 'CONDUCTOR_URL_UNSET', 'CONDUCTOR_URL is not set: this backend has no code-conductor to read playbooks from');
     // Belt and braces behind playbookPath: whatever URL normalisation makes of
     // `path`, this backend only ever reaches cc's playbook routes.
-    const url = new URL(path, baseUrl);
+    let url;
+    try {
+      url = new URL(path, baseUrl);
+    } catch {
+      throw httpError(502, 'CONDUCTOR_UNREACHABLE', `code-conductor is unreachable: CONDUCTOR_URL '${baseUrl}' is not a valid URL`);
+    }
     if (!/^\/api\/playbooks(\/|$)/.test(url.pathname) || /(^|\/)\.{1,2}(\/|$)/.test(path)) {
       throw httpError(400, 'PLAYBOOK_ID_INVALID', `refusing to request ${path} from code-conductor: not a playbook route`);
     }

@@ -27,7 +27,7 @@ Errors are `{error, code}` (plus `errors` for `PLAYBOOK_INVALID`):
 | 409 | `PLAYBOOK_ID_RESERVED` | `<id>` (or `from`) is in cc's `takenIds.reserved` |
 | 422 | `PLAYBOOK_INVALID` | cc's validate answered `ok:false`; `errors` is cc's located list, verbatim |
 | 500 | `PLAYBOOK_WRITE_FAILED` / `PLAYBOOK_DELETE_FAILED` | the filesystem operation failed |
-| 502 | `CONDUCTOR_UNREACHABLE` | cc didn't answer (connection refused or the client timeout in `src/conductorClient.js`) |
+| 502 | `CONDUCTOR_UNREACHABLE` | cc didn't answer (connection refused or the client timeout in `src/conductorClient.js`), or `CONDUCTOR_URL` isn't a valid URL (the message names it) |
 | 502 | `CONDUCTOR_BAD_RESPONSE` | save/delete: cc's list or validate answered other than 200 JSON |
 | 503 | `CONDUCTOR_URL_UNSET` | `CONDUCTOR_URL` absent (every cc-backed route) |
 | 503 | `PROJECTS_ROOT_UNSET` | `PROJECTS_ROOT` absent (writes and deletes) |
