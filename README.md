@@ -39,8 +39,9 @@ CONDUCTOR_URL=http://127.0.0.1:<cc-port> PROJECTS_ROOT=/path/to/projects npm sta
 | `PORT` | listen port | `DEFAULT_PORT` in `server.js` |
 | `CONDUCTOR_URL` | cc base URL, read from and validated against | cc-backed routes answer `503 CONDUCTOR_URL_UNSET` |
 | `PROJECTS_ROOT` | cc's projects root; files go to `$PROJECTS_ROOT/.code-conductor/playbooks/` | writes answer `503 PROJECTS_ROOT_UNSET` |
+| `HOST` | listen address; set it only for standalone use. The API that writes and deletes playbook files has no authentication, so a non-loopback address exposes it to that network | `127.0.0.1` |
 
-cc sets all three when it starts the plugin.
+cc sets `PORT`, `CONDUCTOR_URL` and `PROJECTS_ROOT` when it starts the plugin.
 
 ## Test
 

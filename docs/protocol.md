@@ -8,7 +8,7 @@ The frontend calls only these, by relative path (`api/…`), so it works standal
 |---|---|
 | `GET /api/health` | `{ok:true}` |
 | `GET /api/playbooks` | cc's `GET /api/playbooks`, status and body verbatim |
-| `GET /api/playbooks/<id>` | cc's detail, verbatim. `<id>` may be raw (`acme/release`) or encoded (`acme%2Frelease`); it is forwarded segment-encoded |
+| `GET /api/playbooks/<id>` | cc's detail, verbatim. `<id>` may be raw (`acme/release`) or encoded (`acme%2Frelease`); it is forwarded segment-encoded. An id with an empty, `.` or `..` segment is refused before cc is asked |
 | `POST /api/playbooks/validate` | cc's validate: the request must be `Content-Type: application/json`; its parsed body is re-sent to cc as JSON, and cc's status and answer come back verbatim |
 | `PUT /api/playbooks/<id>[?from=<old>]` | save, below |
 | `DELETE /api/playbooks/<id>` | delete, below |
@@ -17,7 +17,8 @@ Errors are `{error, code}` (plus `errors` for `PLAYBOOK_INVALID`):
 
 | Status | `code` | When |
 |---|---|---|
-| 400 | `PLAYBOOK_ID_INVALID` | `<id>` or `from` is empty, contains `/`, `\`, NUL or `..`, starts with `.`, or resolves outside the overlay dir |
+| 400 | `PLAYBOOK_ID_INVALID` | save/delete: `<id>` or `from` is empty, contains `/`, `\`, NUL or `..`, starts with `.`, or resolves outside the overlay dir |
+| 400 | `PLAYBOOK_ID_INVALID` | detail: `<id>` (after decoding) has an empty, `.` or `..` segment, e.g. `..%2Fsessions`, `a%2F%2Fb`, `acme/`. Nothing is sent to cc. As a second guard, the cc client refuses any request whose resolved path is not under cc's `/api/playbooks`, so no id can turn the backend into a proxy for another cc route |
 | 400 | `PLAYBOOK_ID_MISMATCH` | the body isn't an object, or its `id` ≠ `<id>` |
 | 400 | `BODY_INVALID` | the body is labelled JSON but doesn't parse |
 | 400 | `BODY_NOT_JSON` | validate or save sent without `Content-Type: application/json` (cc refuses validate the same way); nothing reaches cc |

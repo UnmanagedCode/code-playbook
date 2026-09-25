@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootWithFake, rawRequest, listDir } from './helpers.mjs';
 import { loadFixtures } from './fixtures/fakeConductor.mjs';
+import { createConductorClient, playbookPath } from '../src/conductorClient.js';
 
 test('the list, a detail and validate are cc\'s status and body verbatim', async (t) => {
   const { port, fake } = await bootWithFake(t, { fake: { validate: () => ({ ok: false, errors: [{ message: 'm', stage: null, transition: null }] }) } });
@@ -75,6 +76,31 @@ test('an unexpected error → 500 {error, code: INTERNAL} with no stack', async 
   assert.equal(res.statusCode, 500);
   assert.deepEqual(res.body, { error: 'internal error', code: 'INTERNAL' });
   assert.equal(warn.mock.callCount(), 1, 'the real error is logged server-side');
+});
+
+test('detail ids with an empty, `.` or `..` segment → 400 PLAYBOOK_ID_INVALID, and nothing reaches cc', async (t) => {
+  const { port, fake } = await bootWithFake(t);
+  for (const wire of ['..%2Fsessions', 'a%2F..%2F..%2Fx', '.', '..', 'a%2F%2Fb', 'a//b', 'acme/', 'acme%2F', 'a/./b']) {
+    const r = await rawRequest(port, 'GET', `/api/playbooks/${wire}`);
+    assert.equal(r.status, 400, `${wire}: ${r.text}`);
+    assert.equal(r.json.code, 'PLAYBOOK_ID_INVALID', wire);
+  }
+  assert.deepEqual(fake.calls, [], 'no request reached cc');
+  for (const wire of ['acme/release', 'acme%2Frelease']) {
+    assert.equal((await rawRequest(port, 'GET', `/api/playbooks/${wire}`)).status, 200, wire);
+  }
+  assert.deepEqual(fake.calls.map((c) => c.path), ['/api/playbooks/acme/release', '/api/playbooks/acme/release']);
+});
+
+test('the cc client refuses any request whose resolved path leaves /api/playbooks, before sending it', async (t) => {
+  const { fake } = await bootWithFake(t);
+  const cc = createConductorClient({ baseUrl: fake.url });
+  for (const p of ['/api/playbooks/../sessions', '/api/playbooks/a/../../x', '/api/playbooksx', '/api/sessions']) {
+    await assert.rejects(cc.forward('GET', p), (e) => e.statusCode === 400 && e.code === 'PLAYBOOK_ID_INVALID', p);
+  }
+  assert.throws(() => playbookPath('../sessions'), (e) => e.code === 'PLAYBOOK_ID_INVALID');
+  assert.deepEqual(fake.calls, []);
+  assert.equal((await cc.forward('GET', playbookPath('acme/release'))).status, 200);
 });
 
 test('a cc that does not serve /api/playbooks yet: its 404 is forwarded as-is', async (t) => {

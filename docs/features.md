@@ -18,9 +18,9 @@ The **Playbooks** tab (cc nav label from `conductor.plugin.json`). Also runs sta
   - one box per stage; an entry stage has a bold green border; a spawnable stage's name is blue;
   - solid arrows are transitions, labelled with the driving tool (`via`, `send_prompt` for an edge with no `on`);
   - dashed arrows are `needs`, drawn anchor → stage. Without them, playbooks whose flow lives in `needs` (e.g. `relay`) would render as disconnected boxes;
-  - an arrow to the next layer curves straight down through the gap between the two rows;
+  - an arrow to the next layer curves straight down through the gap between the two rows, its label just right of the curve's midpoint;
   - an arrow between two stages of one row (it can only point into an entry stage, or be a back edge) leaves the top of one box and bows above the row into the other's top, clear of every box in the row;
-  - back, upward and layer-skipping arrows leave the right quarter of the source's bottom edge, drop into the gap below its row, run right to a vertical lane beside the whole graph (one lane each), climb or descend to the gap above their target row, and enter the right quarter of the target's top edge. Every horizontal run stays inside a gap between rows, so no arrow is drawn under a box it doesn't connect;
+  - back, upward and layer-skipping arrows leave the right quarter of the source's bottom edge, drop into the gap below its row, run right to a vertical lane beside the whole graph (one lane each, spaced so a lane never runs through the previous one's label, and all right of every self-loop label), climb or descend to the gap above their target row, and enter the right quarter of the target's top edge. Their label sits beside the lane, level with a row the lane passes; Every horizontal run stays inside a gap between rows, so no arrow is drawn under a box it doesn't connect;
   - a self-loop is an arc on the right of its box;
   - clicking a box scrolls to that stage's panel.
 - One panel per stage: entry / spawnable / workers badges, the description, `needs` as `stage · position · liveness`, and the tool table (`tool | policy | pinned arg = value`, with `*` shown as "fallback"). A stage with no tools says that every tool is allowed and `spawn_instance` is denied.
@@ -51,7 +51,7 @@ Both open the **id dialog**, then an in-memory draft (`?draft=1`; reloading a dr
 
 - Fields: id, name, description.
 - **Stage cards**:
-  - name (applied on change; renaming rewrites every reference: entry stages, needs anchors, positions, transitions). A blank name, or one another stage holds, is refused inline, because stages are object keys;
+  - name (applied on change; renaming rewrites every reference: entry stages, needs anchors, positions, transitions). A blank name, or one another stage holds, is refused inline, because stages are object keys. While a refusal is showing, Save is disabled and the status reads *N stage rename(s) refused*;
   - **entry stage** checkbox. Checking appends to `entryStages`, so an authored order is kept;
   - workers `one | many`;
   - **Remove stage**: a confirm lists everything removed with it (entry flag, needs anchored on it, its place in other positions, touching transitions). A position list emptied that way falls back to `[anchor]`;
@@ -68,7 +68,7 @@ Both open the **id dialog**, then an in-memory draft (`?draft=1`; reloading a dr
 - cc's errors are placed on the stage card or transition rows they name. Anything else, including an error naming a stage that no longer exists, goes to **Playbook errors**. No error is dropped.
 - Pin JSON that doesn't parse is the one error found locally, placed on its stage.
 - The status line next to Save reads *Validating…*, *N errors from cc*, *N local errors* or *Valid — ready to save*.
-- **Save** is enabled only when cc accepted the current revision, there are no local errors, and the id isn't blocked. A 422 from save is placed like a validate response.
+- **Save** (`canSave` in `public/saveGate.js`) is enabled only when cc accepted the current revision, there are no local errors or refused stage renames, and the id isn't blocked. A 422 from save is placed like a validate response.
 - After a save, the tab opens the saved playbook, or the list when cc doesn't list it.
 
 ### Notices

@@ -30,13 +30,32 @@ function samplePath(d) {
 }
 const inside = ([x, y], n) => x > n.x + 1 && x < n.x + n.w - 1 && y > n.y + 1 && y < n.y + n.h - 1;
 
+const near = ([x, y], [px, py]) => Math.hypot(x - px, y - py) <= PORT_SLACK;
+const PORT_SLACK = 3;
+
+// Every box is checked, the edge's own endpoints included: an edge drawn
+// through its own target is a crossing too. Only the samples at the path's
+// start and end ports, which sit on a box border by construction, are exempt.
 function assertNoEdgeCrossesANode(g) {
   for (const e of g.edges) {
     const pts = samplePath(e.path);
+    const ends = [pts[0], pts.at(-1)];
+    const body = pts.filter((p) => !ends.some((q) => near(p, q)));
     for (const n of g.nodes) {
-      if (n.id === e.from || n.id === e.to) continue;
-      const hit = pts.find((p) => inside(p, n));
+      const hit = body.find((p) => inside(p, n));
       assert.equal(hit, undefined, `${e.kind} ${e.from}->${e.to} passes through ${n.id} at ${hit}`);
+    }
+  }
+}
+
+// No edge's line runs through another edge's label.
+function assertNoLabelCrossed(g) {
+  for (const e of g.edges.filter((x) => x.label)) assert.ok(e.labelBox, `${e.from}->${e.to} has a label box`);
+  for (const e of g.edges.filter((x) => x.labelBox)) {
+    for (const other of g.edges) {
+      if (other === e) continue;
+      const hit = samplePath(other.path).find((p) => inside(p, e.labelBox));
+      assert.equal(hit, undefined, `${other.from}->${other.to} crosses the label of ${e.from}->${e.to} at ${hit}`);
     }
   }
 }
@@ -68,6 +87,7 @@ test('the graph shows the whole definition, for every fixture', async (t) => {
       for (const s of d.entryStages) assert.equal(g.nodes.find((n) => n.id === s).layer, 0, `entry ${s} in layer 0`);
       for (const e of g.edges) assert.match(e.path, /^M [\d.-]+ [\d.-]+ [LQC] /, `${e.kind} ${e.from}->${e.to} has a path`);
       assertNoEdgeCrossesANode(g);
+      assertNoLabelCrossed(g);
     });
   }
 });
@@ -108,5 +128,36 @@ test('no edge is drawn through a box it does not connect: same-layer, layer-skip
     const row = g.nodes.find((n) => n.id === e.from);
     const clear = Math.max(...samplePath(e.path).map(([, y]) => Math.max(y - (row.y + row.h), row.y - y)));
     assert.ok(clear > row.h / 2, `${e.from}->${e.to} clears its row band by ${clear}px, more than NODE_H/2`);
+  }
+});
+
+test('the endpoint check sees an edge drawn through its own target', () => {
+  const g = layoutGraph({ entryStages: ['a'], stages: { a: { needs: [] }, b: { needs: [] } }, transitions: [{ from: 'a', to: 'b', via: 'send_prompt' }] });
+  const b = g.nodes.find((n) => n.id === 'b');
+  const e = g.edges[0];
+  e.path = `${e.path} L ${b.x + b.w / 2} ${b.y + b.h / 2}`; // run on into b's middle
+  assert.throws(() => assertNoEdgeCrossesANode(g), /passes through b/);
+});
+
+test('routed lanes are spaced so no lane crosses an earlier routed edge\'s label', () => {
+  const s = { needs: [] };
+  const g = layoutGraph({
+    entryStages: ['a'],
+    stages: { a: s, b: s, c: s, d: s },
+    transitions: [
+      { from: 'a', to: 'b', via: 'send_prompt' },
+      { from: 'b', to: 'c', via: 'send_prompt' },
+      { from: 'c', to: 'd', via: 'send_prompt' },
+      { from: 'a', to: 'c', via: 'approve_plan' },
+      { from: 'a', to: 'd', via: 'get_recent_messages' },
+      { from: 'b', to: 'd', via: 'reject_plan' },
+      { from: 'd', to: 'd', via: 'set_idle_timeout' },
+    ],
+  });
+  assert.equal(g.edges.filter((e) => e.path.includes(' L ')).length, 3, 'three routed edges');
+  assertNoEdgeCrossesANode(g);
+  assertNoLabelCrossed(g);
+  for (const e of g.edges.filter((x) => x.labelBox)) {
+    assert.ok(e.labelBox.x + e.labelBox.w <= g.width, `${e.from}->${e.to} label inside the canvas`);
   }
 });

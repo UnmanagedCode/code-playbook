@@ -20,6 +20,7 @@
 | `public/formModel.js` | **pure** form state and transformations |
 | `public/editor.js` | the form over `formModel`, debounced validate, notices, save |
 | `public/idDialog.js` | the id prompt shared by Duplicate and New playbook |
+| `public/saveGate.js` | **pure** `canSave`: when the editor's Save is enabled |
 | `public/wording.js` | **pure** live-worker sentences for the drift and rename warnings and the delete confirm |
 
 The **pure** modules touch no DOM, so the node tests import them directly. Everything under `public/` is plain ES modules with no build step.
@@ -49,7 +50,7 @@ Nothing is written without cc's `ok:true` for that exact body.
 - Edges: transitions (labelled `via`) and needs (anchor → stage, unlabelled).
 - DFS from the entry stages, then the rest in declaration order, marks cycle-closing edges `back`.
 - Layer: 0 for an entry stage or a stage with no forward predecessor, else one below its deepest forward predecessor.
-- Rows keep declaration order and are centred. Next-layer edges are quadratic curves through the gap between the rows (parallel ones fan out). Same-layer edges bow above the row (the top padding grows by `SAME_ROW_BOW` when there are any). Back and layer-skipping edges are polylines: gap below the source, a lane right of every box, gap above the target. Self-loops are arcs on the node's right.
+- Rows keep declaration order and are centred. Next-layer edges are quadratic curves through the gap between the rows (parallel ones fan out). Same-layer edges bow above the row (the top padding grows by `SAME_ROW_BOW` when there are any). Back and layer-skipping edges are polylines: gap below the source, a lane right of every box, gap above the target. Lanes start right of every self-loop label and each starts right of the previous routed edge's label (widths from `CHAR_W`); a routed label sits level with a row centre, where no horizontal run passes. Every labelled edge carries a `labelBox`. Self-loops are arcs on the node's right.
 
 ## Tests
 
@@ -58,9 +59,10 @@ Nothing is written without cc's `ok:true` for that exact body.
 | File | Covers |
 |---|---|
 | `formModel.test.mjs` | lossless round-trip over every fixture, the via and description rules, deny vs undeclared, entry order, pin JSON, rename/remove cascades (and a blank rename refused), duplicate, the New playbook seed (refused blank, accepted once named), `idNotices`, `placeErrors` |
-| `graphLayout.test.mjs` | per fixture: a node per stage, no overlaps, an edge per transition and per need, entry stages in layer 0, and (by sampling each path) no edge inside a box it doesn't connect; longest-path layering; cycles; a synthetic graph with same-layer, layer-skipping and back edges, and same-layer bows clearing the row band by more than half a box |
+| `graphLayout.test.mjs` | per fixture: a node per stage, no overlaps, an edge per transition and per need, entry stages in layer 0, and (by sampling each path, every box including the edge's own endpoints, skipping only the samples at its ports) no edge inside a box and no edge through another edge's label; longest-path layering; cycles; a synthetic graph with same-layer, layer-skipping and back edges, and same-layer bows clearing the row band by more than half a box |
 | `authoring.test.mjs` | save target, the draft sent to cc as JSON, validate-before-write, unreachable cc, id mismatch, the path guard, cc judging path-safe ids, reserved ids, atomic write, rename ordering, delete scope, `PROJECTS_ROOT` unset |
-| `routes.test.mjs` | verbatim forwarding (incl. slash ids and cc 404s) with a JSON Content-Type to cc, `BODY_NOT_JSON`, `PATH_INVALID` without a stack, the generic 500, `CONDUCTOR_URL` unset, unreachable cc, bad JSON |
+| `routes.test.mjs` | verbatim forwarding (incl. slash ids and cc 404s), dot/empty-segment detail ids refused with no request to cc, the cc client's own path guard with a JSON Content-Type to cc, `BODY_NOT_JSON`, `PATH_INVALID` without a stack, the generic 500, `CONDUCTOR_URL` unset, unreachable cc, bad JSON |
+| `saveGate.test.mjs` | Save enabled only for the accepted current revision; a refused rename blocks it while its stage exists |
 | `wording.test.mjs` | the live-worker sentences for a count of 1, many and unknown |
 | `static.test.mjs` | frontend served, relative refs, absolute bridge tag |
 | `pluginManifest.test.mjs` | manifest fields cc relies on |

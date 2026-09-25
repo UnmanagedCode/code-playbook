@@ -14,13 +14,24 @@ const NODE_H = 44;
 const V_GAP = 56;
 const H_GAP = 36;
 const PAD = 24;
-const LOOP_ROOM = 150; // right of the widest row: self-loops and their labels
-const LABEL_ROOM = 110; // right of the outermost routed-around edge: its label
+const LOOP_REACH = 44; // a self-loop's control points, right of its box
+const LABEL_GAP = 4; // between a line and the label beside it
+const LANE_GAP = 12; // clear space right of a routed edge's label before the next lane
+const CHAR_W = 7.2; // label glyph advance: graph.js/styles.css render labels 11.5px monospace
+const LABEL_H = 14;
 const SAME_ROW_BOW = 40; // a same-row edge's control-point height above the row (its curve rises 3/4 of this)
 const LANE_INSET = 16; // a routed edge's horizontal runs, this far into the gap beside its row
 
 const nodeWidth = (label) => Math.min(220, Math.max(110, Math.round(label.length * 7.5) + 32));
 const r1 = (n) => Math.round(n * 10) / 10;
+const labelWidth = (text) => Math.ceil(text.length * CHAR_W);
+
+// The box a label occupies, from its anchor point and text-anchor.
+function labelBox(e) {
+  const w = labelWidth(e.label);
+  const x = e.anchor === 'middle' ? e.labelX - w / 2 : e.labelX;
+  return { x: r1(x), y: e.labelY - LABEL_H / 2, w, h: LABEL_H };
+}
 
 export function layoutGraph(detail) {
   const names = Object.keys(detail.stages);
@@ -83,14 +94,25 @@ export function layoutGraph(detail) {
     const k = `${e.from}\0${e.to}`;
     pairs.set(k, [...(pairs.get(k) || []), e]);
   }
-  let around = 0;
+  // Lanes for routed edges start right of every self-loop and its label; each
+  // next lane starts right of the previous routed edge's label, so no lane
+  // runs through a label.
+  let lane = right + LOOP_REACH + LANE_GAP;
+  for (const e of edges.filter((x) => x.self && x.kind === 'transition')) {
+    const n = nodes.get(e.from);
+    lane = Math.max(lane, n.x + n.w + LOOP_REACH - LABEL_GAP + labelWidth(e.label) + LANE_GAP);
+  }
+  // Row centres: a routed label sits at one, level with boxes, where no
+  // routed edge's horizontal run (always in a gap between rows) can pass.
+  const centres = rows.map((_, l) => top + l * (NODE_H + V_GAP) + NODE_H / 2);
+  let edgeRight = lane;
   for (const e of edges) {
     const a = nodes.get(e.from);
     const b = nodes.get(e.to);
     if (e.self) {
       const x = a.x + a.w; const y = a.y;
-      e.path = `M ${x} ${y + 12} C ${x + 44} ${y - 6}, ${x + 44} ${y + a.h + 6}, ${x} ${y + a.h - 12}`;
-      Object.assign(e, { labelX: x + 40, labelY: y + a.h / 2, anchor: 'start' });
+      e.path = `M ${x} ${y + 12} C ${x + LOOP_REACH} ${y - 6}, ${x + LOOP_REACH} ${y + a.h + 6}, ${x} ${y + a.h - 12}`;
+      Object.assign(e, { labelX: x + LOOP_REACH - LABEL_GAP, labelY: y + a.h / 2, anchor: 'start' });
     } else if (layer.get(e.to) === layer.get(e.from) + 1 && !e.back) {
       const group = pairs.get(`${e.from}\0${e.to}`);
       const off = (group.indexOf(e) - (group.length - 1) / 2) * 26;
@@ -98,7 +120,8 @@ export function layoutGraph(detail) {
       const x2 = b.x + b.w / 2 + off; const y2 = b.y;
       const cx = (x1 + x2) / 2 + off; const cy = (y1 + y2) / 2;
       e.path = `M ${r1(x1)} ${y1} Q ${r1(cx)} ${cy}, ${r1(x2)} ${y2}`;
-      Object.assign(e, { labelX: r1((x1 + 2 * cx + x2) / 4), labelY: cy, anchor: 'middle' });
+      // Beside the curve's midpoint rather than on it, so the line doesn't strike it through.
+      Object.assign(e, { labelX: r1((x1 + 2 * cx + x2) / 4) + LABEL_GAP + 2, labelY: cy, anchor: 'start' });
     } else if (layer.get(e.to) === layer.get(e.from)) {
       // Same row: top to top, bowing above the row, so the curve never enters
       // the band the row's boxes occupy. Such edges only point into an entry
@@ -110,21 +133,26 @@ export function layoutGraph(detail) {
       // Back or layer-skipping: down into the gap below `from`, across to a
       // lane right of every box, along it to the gap above `to`, then in.
       // Horizontal runs stay inside the gaps between rows, so no box is crossed.
-      const bx = right + LOOP_ROOM + 22 * around++;
+      const bx = r1(lane);
       // Ports at the right quarter of each box, apart from the centred
       // next-layer edges that share these sides.
       const x1 = r1(a.x + a.w * 0.75); const y1 = a.y + a.h; const g1 = y1 + LANE_INSET;
       const x2 = r1(b.x + b.w * 0.75); const y2 = b.y; const g2 = y2 - LANE_INSET;
       e.path = `M ${x1} ${y1} L ${x1} ${g1} L ${bx} ${g1} L ${bx} ${g2} L ${x2} ${g2} L ${x2} ${y2}`;
-      Object.assign(e, { labelX: bx + 4, labelY: (g1 + g2) / 2, anchor: 'start' });
+      const spanned = centres.filter((c) => c > Math.min(g1, g2) && c < Math.max(g1, g2));
+      Object.assign(e, { labelX: bx + LABEL_GAP, labelY: spanned[Math.floor((spanned.length - 1) / 2)], anchor: 'start' });
+      const labelEnd = e.kind === 'transition' ? LABEL_GAP + labelWidth(e.label) : 0;
+      edgeRight = bx + labelEnd;
+      lane = edgeRight + LANE_GAP;
     }
-    if (e.kind === 'needs') { delete e.labelX; delete e.labelY; delete e.anchor; }
+    if (e.kind === 'needs') { delete e.labelX; delete e.labelY; delete e.anchor; } else e.labelBox = labelBox(e);
   }
+  for (const e of edges) if (e.labelBox) edgeRight = Math.max(edgeRight, e.labelBox.x + e.labelBox.w);
 
   return {
     nodes: names.map((n) => nodes.get(n)),
     edges,
-    width: r1(right + LOOP_ROOM + (around ? 22 * (around - 1) + LABEL_ROOM : 0) + PAD),
+    width: r1(edgeRight + PAD),
     height: top + PAD + rows.length * NODE_H + (rows.length - 1) * V_GAP,
   };
 }

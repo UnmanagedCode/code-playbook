@@ -7,9 +7,15 @@ import { httpError } from './httpError.js';
 export function createConductorClient({ baseUrl, timeoutMs = 5000 }) {
   async function request(method, path, body) {
     if (!baseUrl) throw httpError(503, 'CONDUCTOR_URL_UNSET', 'CONDUCTOR_URL is not set: this backend has no code-conductor to read playbooks from');
+    // Belt and braces behind playbookPath: whatever URL normalisation makes of
+    // `path`, this backend only ever reaches cc's playbook routes.
+    const url = new URL(path, baseUrl);
+    if (!/^\/api\/playbooks(\/|$)/.test(url.pathname) || /(^|\/)\.{1,2}(\/|$)/.test(path)) {
+      throw httpError(400, 'PLAYBOOK_ID_INVALID', `refusing to request ${path} from code-conductor: not a playbook route`);
+    }
     let res;
     try {
-      res = await fetch(new URL(path, baseUrl), {
+      res = await fetch(url, {
         method,
         headers: body === undefined ? {} : { 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -42,6 +48,11 @@ export function createConductorClient({ baseUrl, timeoutMs = 5000 }) {
 }
 
 // Encodes each segment of a (possibly plugin-namespaced `a/b`) playbook id.
+// An empty, `.` or `..` segment is refused: encodeURIComponent leaves dots
+// alone and URL resolution would turn them into a path to another cc route.
 export function playbookPath(id) {
+  if (id.split('/').some((seg) => seg === '' || seg === '.' || seg === '..')) {
+    throw httpError(400, 'PLAYBOOK_ID_INVALID', `'${id}' is not a playbook id: it has an empty, '.' or '..' segment`);
+  }
   return `/api/playbooks/${id.split('/').map(encodeURIComponent).join('/')}`;
 }

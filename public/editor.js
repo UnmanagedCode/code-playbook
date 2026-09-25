@@ -5,6 +5,7 @@ import {
   SEND_PROMPT, SPAWN, WILDCARD,
 } from './formModel.js';
 import { driftWarning, renameWarning } from './wording.js';
+import { canSave } from './saveGate.js';
 
 const VALIDATE_DEBOUNCE_MS = 300;
 const STAGE_DESC_HINT = 'Stage descriptions reach the conductor verbatim (its role prompt when this is the preferred playbook, and describe_playbook), so editing one changes what the conductor does.';
@@ -97,11 +98,6 @@ export function openEditor(container, opts) {
     return { block: n.block, warn };
   }
 
-  function canSave(n) {
-    return !s.saving && s.form.id !== '' && !n.block && s.localErrors.length === 0
-      && s.validation?.rev === s.rev && s.validation.ok;
-  }
-
   async function save() {
     const r = definitionFromForm(s.form);
     if (!r.definition) return;
@@ -125,7 +121,9 @@ export function openEditor(container, opts) {
 
   function statusLine(n) {
     let text; let cls = 'status';
+    const renames = s.form.stages.filter((st) => s.renameErrors[st.key]).length;
     if (s.saving) text = 'Saving…';
+    else if (renames) { text = `${renames} stage rename${renames === 1 ? '' : 's'} refused`; cls += ' bad'; }
     else if (s.localErrors.length) { text = `${s.localErrors.length} local error${s.localErrors.length === 1 ? '' : 's'}`; cls += ' bad'; }
     else if (!s.validation || s.validation.rev !== s.rev) text = 'Validating…';
     else if (s.validation.ok) { text = n.block ? 'Valid, but the id is blocked' : 'Valid — ready to save'; cls += n.block ? ' bad' : ' good'; }
@@ -302,7 +300,7 @@ export function openEditor(container, opts) {
         el('h2', { text: opts.title }),
         el('div', { class: 'actions' },
           statusLine(n),
-          el('button', { class: 'primary', text: 'Save', disabled: !canSave(n), dataset: { action: 'save' }, on: { click: save } }),
+          el('button', { class: 'primary', text: 'Save', disabled: !canSave(s, n), dataset: { action: 'save' }, on: { click: save } }),
           el('button', { text: 'Cancel', on: { click: opts.onCancel } }))),
       n.block && el('div', { class: 'notice block', text: n.block }),
       ...n.warn.map((w) => el('div', { class: 'notice warn', text: w })),

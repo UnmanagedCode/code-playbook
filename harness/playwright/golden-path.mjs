@@ -63,7 +63,7 @@ try {
     assert.equal(await page.locator('.actions button:has-text("Duplicate")').count(), 1);
     await shot(page, '03-plugin-readonly');
 
-    // 3b. mine: a same-row needs edge (draft → review) bowing below its row
+    // 3b. mine: a same-row needs edge (draft → review) bowing above its row
     await page.click('.list-entry[data-id="mine"]');
     await page.waitForSelector('h2:has-text("Mine")');
     await shot(page, '03b-mine-detail', true);
@@ -105,6 +105,21 @@ try {
     assert.ok(!(await page.locator('[data-action="save"]').isDisabled()), 'Save enabled once cc accepts');
     await page.evaluate(() => window.scrollTo(0, 0));
     await shot(page, '06-editor-ok');
+
+    // 6b. a refused rename (blank, then another stage's name) blocks Save until fixed
+    for (const [name, why] of [['   ', /cannot be empty/], ['plan', /already exists/]]) {
+      await nameInput.fill(name);
+      await nameInput.press('Tab');
+      assert.match(await page.locator('.stage-card[data-stage="ok"] p.errors').innerText(), why);
+      assert.ok(await page.locator('[data-action="save"]').isDisabled(), `Save disabled while the rename to ${JSON.stringify(name)} is refused`);
+      assert.match(await page.locator('[data-status]').innerText(), /stage rename refused/);
+    }
+    await stageCard(page, 'ok').scrollIntoViewIfNeeded();
+    await shot(page, '06b-rename-refused');
+    await nameInput.fill('ok');
+    await nameInput.press('Tab');
+    await settle(page);
+    assert.ok(!(await page.locator('[data-action="save"]').isDisabled()), 'Save enabled again once the rename is resolved');
 
     // 7. save → the sandbox holds exactly the form's definition
     await page.click('[data-action="save"]');
