@@ -9,7 +9,7 @@ The frontend calls only these, by relative path (`api/…`), so it works standal
 | `GET /api/health` | `{ok:true}` |
 | `GET /api/playbooks` | cc's `GET /api/playbooks`, status and body verbatim |
 | `GET /api/playbooks/<id>` | cc's detail, verbatim. `<id>` may be raw (`acme/release`) or encoded (`acme%2Frelease`); it is forwarded segment-encoded |
-| `POST /api/playbooks/validate` | cc's validate, body and answer verbatim |
+| `POST /api/playbooks/validate` | cc's validate: the request must be `Content-Type: application/json`; its parsed body is re-sent to cc as JSON, and cc's status and answer come back verbatim |
 | `PUT /api/playbooks/<id>[?from=<old>]` | save, below |
 | `DELETE /api/playbooks/<id>` | delete, below |
 
@@ -19,7 +19,9 @@ Errors are `{error, code}` (plus `errors` for `PLAYBOOK_INVALID`):
 |---|---|---|
 | 400 | `PLAYBOOK_ID_INVALID` | `<id>` or `from` is empty, contains `/`, `\`, NUL or `..`, starts with `.`, or resolves outside the overlay dir |
 | 400 | `PLAYBOOK_ID_MISMATCH` | the body isn't an object, or its `id` ≠ `<id>` |
-| 400 | `BODY_INVALID` | the body isn't JSON |
+| 400 | `BODY_INVALID` | the body is labelled JSON but doesn't parse |
+| 400 | `BODY_NOT_JSON` | validate or save sent without `Content-Type: application/json` (cc refuses validate the same way); nothing reaches cc |
+| 400 | `PATH_INVALID` | the path holds a malformed percent-encoding (e.g. `%c0%ae`) |
 | 404 | `PLAYBOOK_NOT_FOUND` | delete: no `<id>.json` (always the case for a built-in or plugin id) |
 | 409 | `PLAYBOOK_ID_RESERVED` | `<id>` (or `from`) is in cc's `takenIds.reserved` |
 | 422 | `PLAYBOOK_INVALID` | cc's validate answered `ok:false`; `errors` is cc's located list, verbatim |
@@ -28,6 +30,9 @@ Errors are `{error, code}` (plus `errors` for `PLAYBOOK_INVALID`):
 | 502 | `CONDUCTOR_BAD_RESPONSE` | save/delete: cc's list or validate answered other than 200 JSON |
 | 503 | `CONDUCTOR_URL_UNSET` | `CONDUCTOR_URL` absent (every cc-backed route) |
 | 503 | `PROJECTS_ROOT_UNSET` | `PROJECTS_ROOT` absent (writes and deletes) |
+| 500 | `INTERNAL` | anything unexpected; the error itself is logged by the backend, never sent |
+
+Every error, including one raised before a route runs, leaves as this JSON (`jsonErrorHandler` in `src/errorHandler.js`, installed on the API router and the app); express's HTML error page, which carries a stack, is never sent. An unknown non-API path gets express's plain "Cannot GET" 404.
 
 The id guard is a path-safety check only. Whether an id is a valid playbook slug is decided by cc's validator on the body.
 

@@ -7,6 +7,7 @@ import { buildRoutes } from './src/routes.js';
 import { createConductorClient } from './src/conductorClient.js';
 import { createPlaybookStore } from './src/playbookStore.js';
 import { createAuthoring } from './src/authoring.js';
+import { jsonErrorHandler } from './src/errorHandler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -42,6 +43,7 @@ export function createServer({ conductorUrl, projectsRoot }) {
     index: false,
     setHeaders: (res) => res.setHeader('Cache-Control', 'no-store'),
   }));
+  app.use(jsonErrorHandler);
   return http.createServer(app);
 }
 

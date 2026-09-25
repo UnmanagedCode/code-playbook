@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bootWithFake, rawRequest } from './helpers.mjs';
+import { bootWithFake, rawRequest, listDir } from './helpers.mjs';
 import { loadFixtures } from './fixtures/fakeConductor.mjs';
 
 test('the list, a detail and validate are cc\'s status and body verbatim', async (t) => {
@@ -27,7 +27,54 @@ test('the list, a detail and validate are cc\'s status and body verbatim', async
   const v = await rawRequest(port, 'POST', '/api/playbooks/validate', draft);
   assert.equal(v.status, 200);
   assert.deepEqual(v.json, { ok: false, errors: [{ message: 'm', stage: null, transition: null }] });
-  assert.deepEqual(fake.calls.at(-1), { method: 'POST', path: '/api/playbooks/validate', body: draft });
+  assert.deepEqual(fake.calls.at(-1), { method: 'POST', path: '/api/playbooks/validate', body: draft, contentType: 'application/json' });
+});
+
+// A raw body with an explicit Content-Type (rawRequest always sends JSON).
+function sendAs(port, method, p, type, text) {
+  return new Promise((resolve, reject) => {
+    import('node:http').then(({ default: http }) => {
+      const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { 'content-type': type } }, (res) => {
+        let t = ''; res.on('data', (c) => { t += c; }); res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(t) }));
+      });
+      req.on('error', reject);
+      req.end(text);
+    });
+  });
+}
+
+test('validate and save refuse a non-JSON Content-Type with 400 BODY_NOT_JSON, and never reach cc', async (t) => {
+  const { port, fake, overlay } = await bootWithFake(t);
+  for (const [method, p] of [['POST', '/api/playbooks/validate'], ['PUT', '/api/playbooks/x']]) {
+    for (const type of ['text/plain', 'application/x-www-form-urlencoded']) {
+      const r = await sendAs(port, method, p, type, JSON.stringify({ id: 'x' }));
+      assert.equal(r.status, 400, `${method} ${type}`);
+      assert.equal(r.json.code, 'BODY_NOT_JSON', `${method} ${type}`);
+    }
+  }
+  assert.deepEqual(fake.calls, []);
+  assert.deepEqual(await listDir(overlay), []);
+});
+
+test('a malformed percent-encoding → 400 PATH_INVALID as JSON, with no stack or install path', async (t) => {
+  const { port } = await bootWithFake(t);
+  for (const [method, p] of [['GET', '/api/playbooks/%c0%ae'], ['PUT', '/api/playbooks/%c0'], ['DELETE', '/api/playbooks/%E0%A4%A']]) {
+    const r = await rawRequest(port, method, p, method === 'PUT' ? { id: 'x' } : undefined);
+    assert.equal(r.status, 400, `${method} ${p}: ${r.text}`);
+    assert.match(r.headers['content-type'], /application\/json/, `${method} ${p}`);
+    assert.equal(r.json.code, 'PATH_INVALID', `${method} ${p}`);
+    assert.doesNotMatch(r.text, /node_modules|\bat \w|\.js:\d/, `${method} ${p} leaks nothing`);
+  }
+});
+
+test('an unexpected error → 500 {error, code: INTERNAL} with no stack', async (t) => {
+  const { jsonErrorHandler } = await import('../src/errorHandler.js');
+  const res = { statusCode: 0, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  const warn = t.mock.method(console, 'error', () => {});
+  jsonErrorHandler(new Error('boom at /secret/path/x.js:1'), {}, res, () => {});
+  assert.equal(res.statusCode, 500);
+  assert.deepEqual(res.body, { error: 'internal error', code: 'INTERNAL' });
+  assert.equal(warn.mock.callCount(), 1, 'the real error is logged server-side');
 });
 
 test('a cc that does not serve /api/playbooks yet: its 404 is forwarded as-is', async (t) => {

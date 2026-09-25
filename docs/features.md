@@ -9,7 +9,7 @@ The **Playbooks** tab (cc nav label from `conductor.plugin.json`). Also runs sta
 - **Load errors**: cc's `errors`, grouped by id. An id that is in `takenIds.user` (a file in the overlay dir that cc refused) offers **Delete file**. This is the only way to remove a broken file from the GUI: cc won't load it, so there is nothing to open in the editor.
 - A user file whose id is a built-in id overrides that built-in. It is listed under User and badged **overrides built-in** in its detail.
 - A cc that answers 404 to `/api/playbooks` shows "cc does not serve /api/playbooks yet — restart code-conductor."
-- At widths ≤ 760px the list hides while a playbook, editor or draft is open, and **← All playbooks** returns to it.
+- At widths within the `max-width` media query in `public/styles.css`, the list hides while a playbook, editor or draft is open, and **← All playbooks** returns to it.
 
 ## Detail (`?playbook=<id>`)
 
@@ -18,7 +18,10 @@ The **Playbooks** tab (cc nav label from `conductor.plugin.json`). Also runs sta
   - one box per stage; an entry stage has a bold green border; a spawnable stage's name is blue;
   - solid arrows are transitions, labelled with the driving tool (`via`, `send_prompt` for an edge with no `on`);
   - dashed arrows are `needs`, drawn anchor → stage. Without them, playbooks whose flow lives in `needs` (e.g. `relay`) would render as disconnected boxes;
-  - an arrow to the next layer goes straight down; back edges, upward and same-layer edges, and edges that skip a layer are routed around the right side;
+  - an arrow to the next layer curves straight down through the gap between the two rows;
+  - an arrow between two stages of one row (it can only point into an entry stage, or be a back edge) leaves the top of one box and bows above the row into the other's top, clear of every box in the row;
+  - back, upward and layer-skipping arrows leave the right quarter of the source's bottom edge, drop into the gap below its row, run right to a vertical lane beside the whole graph (one lane each), climb or descend to the gap above their target row, and enter the right quarter of the target's top edge. Every horizontal run stays inside a gap between rows, so no arrow is drawn under a box it doesn't connect;
+  - a self-loop is an arc on the right of its box;
   - clicking a box scrolls to that stage's panel.
 - One panel per stage: entry / spawnable / workers badges, the description, `needs` as `stage · position · liveness`, and the tool table (`tool | policy | pinned arg = value`, with `*` shown as "fallback"). A stage with no tools says that every tool is allowed and `spawn_instance` is denied.
 - Transitions table: `from → to`, `via`, description.
@@ -41,14 +44,14 @@ A native confirm, then `DELETE api/playbooks/<id>`. The confirm text adds:
 Both open the **id dialog**, then an in-memory draft (`?draft=1`; reloading a draft URL returns to the list).
 
 - Duplicate suggests `<slug>-copy` (the part after `/` for a plugin id) and copies everything else, name and description included.
-- New playbook opens with empty name and description and one stage, `start`: an entry stage with `spawn_instance: allow`. cc refuses the empty name and description until they are filled in.
+- New playbook opens with empty name and description and one stage, `start`: an entry stage with `spawn_instance: allow`. cc refuses the empty name and description (shown under **Playbook errors**, Save disabled) until they are filled in.
 - The dialog shows the id notices live (below). **Continue** is disabled for an empty or reserved id.
 
 ## Editor (`?edit=<id>`, or a draft)
 
 - Fields: id, name, description.
 - **Stage cards**:
-  - name (applied on change; renaming rewrites every reference: entry stages, needs anchors, positions, transitions). A name another stage holds is refused inline, because stages are object keys;
+  - name (applied on change; renaming rewrites every reference: entry stages, needs anchors, positions, transitions). A blank name, or one another stage holds, is refused inline, because stages are object keys;
   - **entry stage** checkbox. Checking appends to `entryStages`, so an authored order is kept;
   - workers `one | many`;
   - **Remove stage**: a confirm lists everything removed with it (entry flag, needs anchored on it, its place in other positions, touching transitions). A position list emptied that way falls back to `[anchor]`;
@@ -75,7 +78,9 @@ Both open the **id dialog**, then an in-memory draft (`?draft=1`; reloading a dr
 | "`<id>` is reserved: cc ignores an overlay file with this id." | blocks Save | id in `takenIds.reserved` |
 | "`<id>` overrides the shipped `<id>` playbook until this file is deleted." | warning | id in `takenIds.builtin` |
 | "`<id>` overwrites the existing user playbook `<id>`." | warning | id in `takenIds.user` and not the id being edited |
-| "N live workers are bound to `<id>`. Definitions aren't pinned to a run: saving applies to their next governed call, and a stage removed or renamed under a worker refuses it STAGE_UNKNOWN." | warning | the id names a loaded playbook whose `liveWorkers` ≠ 0 (`null` → "an unknown number") |
-| "Saving under `<new>` removes `<old>`.json." plus, with live workers, "… lose their playbook (PLAYBOOK_UNKNOWN)" | warning | editing, with the id changed (a rename) |
+| "N live workers are bound to `<id>`. Definitions aren't pinned to a run: saving applies to their next governed call, and a stage removed or renamed under a worker refuses it STAGE_UNKNOWN." (`null`: "An unknown number of live workers may be bound to `<id>`. …") | warning | the id names a loaded playbook whose `liveWorkers` ≠ 0 |
+| "Saving under `<new>` removes `<old>`.json." plus, unless `liveWorkers` is 0, "N live workers bound to `<old>` will lose their playbook (PLAYBOOK_UNKNOWN)." (`null`: "Any live workers bound to `<old>` (cc could not count them) will …") | warning | editing, with the id changed (a rename) |
+
+The live-worker sentences, including the delete confirm's, come from `public/wording.js`.
 
 Every other rule on ids and contents is cc's, reported through validate.

@@ -10,6 +10,7 @@
 | `src/authoring.js` | save / delete sequencing: guard → reserved check → cc validate → store |
 | `src/routes.js` | HTTP layer; thrown `httpError`s become `{error, code, …}` |
 | `src/httpError.js` | the error type carrying status, code and extra body fields |
+| `src/errorHandler.js` | `jsonErrorHandler`: the last error handler on the router and the app; JSON only, never a stack |
 | `public/app.js` | bootstrap, routing on query params, list reloads, Duplicate/New/Delete flows |
 | `public/api.js` | relative fetch helpers, each answering `{ok, status, data}` |
 | `public/dom.js` | `el`/`svg`/`select` builders and `fill` (replaceChildren that skips falsy children) |
@@ -19,8 +20,9 @@
 | `public/formModel.js` | **pure** form state and transformations |
 | `public/editor.js` | the form over `formModel`, debounced validate, notices, save |
 | `public/idDialog.js` | the id prompt shared by Duplicate and New playbook |
+| `public/wording.js` | **pure** live-worker sentences for the drift and rename warnings and the delete confirm |
 
-The two **pure** modules touch no DOM, so the node tests import them directly. Everything under `public/` is plain ES modules with no build step.
+The **pure** modules touch no DOM, so the node tests import them directly. Everything under `public/` is plain ES modules with no build step.
 
 ## Division of rules
 
@@ -47,7 +49,7 @@ Nothing is written without cc's `ok:true` for that exact body.
 - Edges: transitions (labelled `via`) and needs (anchor → stage, unlabelled).
 - DFS from the entry stages, then the rest in declaration order, marks cycle-closing edges `back`.
 - Layer: 0 for an entry stage or a stage with no forward predecessor, else one below its deepest forward predecessor.
-- Rows keep declaration order and are centred. Next-layer edges are quadratic curves (parallel ones fan out); self-loops are arcs on the node's right; all other edges bow around the right of the graph.
+- Rows keep declaration order and are centred. Next-layer edges are quadratic curves through the gap between the rows (parallel ones fan out). Same-layer edges bow above the row (the top padding grows by `SAME_ROW_BOW` when there are any). Back and layer-skipping edges are polylines: gap below the source, a lane right of every box, gap above the target. Self-loops are arcs on the node's right.
 
 ## Tests
 
@@ -55,10 +57,11 @@ Nothing is written without cc's `ok:true` for that exact body.
 
 | File | Covers |
 |---|---|
-| `formModel.test.mjs` | lossless round-trip over every fixture, the via and description rules, deny vs undeclared, entry order, pin JSON, rename/remove cascades, duplicate, the New playbook seed, `idNotices`, `placeErrors` |
-| `graphLayout.test.mjs` | per fixture: a node per stage, no overlaps, an edge per transition and per need, entry stages in layer 0; longest-path layering; cycles |
-| `authoring.test.mjs` | save target, validate-before-write, unreachable cc, id mismatch, the path guard, cc judging path-safe ids, reserved ids, atomic write, rename ordering, delete scope, `PROJECTS_ROOT` unset |
-| `routes.test.mjs` | verbatim forwarding (incl. slash ids and cc 404s), `CONDUCTOR_URL` unset, unreachable cc, bad JSON |
+| `formModel.test.mjs` | lossless round-trip over every fixture, the via and description rules, deny vs undeclared, entry order, pin JSON, rename/remove cascades (and a blank rename refused), duplicate, the New playbook seed (refused blank, accepted once named), `idNotices`, `placeErrors` |
+| `graphLayout.test.mjs` | per fixture: a node per stage, no overlaps, an edge per transition and per need, entry stages in layer 0, and (by sampling each path) no edge inside a box it doesn't connect; longest-path layering; cycles; a synthetic graph with same-layer, layer-skipping and back edges, and same-layer bows clearing the row band by more than half a box |
+| `authoring.test.mjs` | save target, the draft sent to cc as JSON, validate-before-write, unreachable cc, id mismatch, the path guard, cc judging path-safe ids, reserved ids, atomic write, rename ordering, delete scope, `PROJECTS_ROOT` unset |
+| `routes.test.mjs` | verbatim forwarding (incl. slash ids and cc 404s) with a JSON Content-Type to cc, `BODY_NOT_JSON`, `PATH_INVALID` without a stack, the generic 500, `CONDUCTOR_URL` unset, unreachable cc, bad JSON |
+| `wording.test.mjs` | the live-worker sentences for a count of 1, many and unknown |
 | `static.test.mjs` | frontend served, relative refs, absolute bridge tag |
 | `pluginManifest.test.mjs` | manifest fields cc relies on |
 | `fixtures.test.mjs` | the fixtures match `tests/contractShape.mjs` |
@@ -66,7 +69,7 @@ Nothing is written without cc's `ok:true` for that exact body.
 
 Fixtures:
 - `tests/fixtures/cc-api/`: the list (`playbooks.json`) and one detail per listed playbook (a plugin id's `/` is `__` in the filename). `mine.json` uses every field the validator admits.
-- `tests/fixtures/fakeConductor.mjs`: `startFakeConductor({validate, handle})` → `{url, calls, down, close}`. `cannedValidate` refuses only a stage named `bad`; the fake never judges a definition.
+- `tests/fixtures/fakeConductor.mjs`: `startFakeConductor({validate, handle})` → `{url, calls, down, close}`; `calls` records each request's method, path, body and Content-Type. Like cc, validate refuses a non-JSON Content-Type with 400 `BODY_NOT_JSON`. `cannedValidate` mirrors cc's required-name and required-description rule (with cc's message text) and otherwise refuses only a stage named `bad`.
 - `tests/helpers.mjs`: `bootWithFake(t, …)` (server + fake + tmp `PROJECTS_ROOT`, torn down via `t.after`) and `rawRequest` (sends a path unnormalised, so `..` and `%2F` reach the server).
 
 ## Visual harness
@@ -74,6 +77,6 @@ Fixtures:
 `npm run harness` → `harness/playwright/golden-path.mjs`:
 - `codePlaywright.mjs` resolves the shared `code-playwright` `browser.mjs` from `$CC_PROJECTS_ROOT/.plugins/`;
 - `boot.mjs` boots `server.js` with a sandboxed `PROJECTS_ROOT` via `bootServer`;
-- the golden path starts the fake cc in-process and asserts as it goes: the grouped list, the relay graph, a read-only plugin playbook, the id-dialog notices, a canned error on a stage card, Save gating, the saved file's bytes, the drift and rename warnings, and New playbook. It then repeats the list, a detail and the editor at a mobile width;
+- the golden path starts the fake cc in-process and asserts as it goes: the grouped list, the relay graph, a read-only plugin playbook, the id-dialog notices, a canned error on a stage card, Save gating, the saved file's bytes, the drift and rename warnings, and New playbook both blank (name/description errors, Save disabled) and named. It then repeats the list, a detail and the editor at a mobile width;
 - screenshots go to `harness/playwright/screenshots/` (git-ignored);
 - with `CONDUCTOR_URL` set, it uses that live cc and captures only the list and relay's detail.

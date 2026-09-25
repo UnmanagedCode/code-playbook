@@ -63,6 +63,11 @@ try {
     assert.equal(await page.locator('.actions button:has-text("Duplicate")').count(), 1);
     await shot(page, '03-plugin-readonly');
 
+    // 3b. mine: a same-row needs edge (draft → review) bowing below its row
+    await page.click('.list-entry[data-id="mine"]');
+    await page.waitForSelector('h2:has-text("Mine")');
+    await shot(page, '03b-mine-detail', true);
+
     // 4. duplicate relay → id dialog notices
     await page.click('.list-entry[data-id="relay"]');
     await page.waitForSelector('h2:has-text("Relay")');
@@ -133,7 +138,15 @@ try {
     await page.waitForSelector('.stage-card[data-stage="start"]');
     await settle(page);
     assert.ok(await page.locator('[data-f^="entry:"]').isChecked());
-    await shot(page, '10-new-playbook', true);
+    assert.match(await page.locator('.playbook-errors').innerText(), /name is required[\s\S]*description is required/);
+    assert.ok(await page.locator('[data-action="save"]').isDisabled(), 'the blank seed is not savable');
+    await shot(page, '10a-new-playbook-blank', true);
+    await page.locator('[data-f="name"]').fill('Fresh');
+    await page.locator('[data-f="description"]').fill('A fresh playbook.');
+    await settle(page);
+    assert.equal(await page.locator('.playbook-errors').count(), 0);
+    assert.ok(!(await page.locator('[data-action="save"]').isDisabled()), 'savable once named');
+    await shot(page, '10b-new-playbook-named', true);
   }, { headless: true, viewport: DESKTOP });
 
   if (!live) {

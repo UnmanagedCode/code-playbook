@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { renderList, renderDetail, renderMessage } from './viewer.js';
 import { openEditor } from './editor.js';
 import { askId } from './idDialog.js';
+import { deleteConfirm } from './wording.js';
 import { formFromDetail, duplicateForm, newPlaybookForm } from './formModel.js';
 
 // Routes: `?playbook=<id>` (detail), `?edit=<id>` (edit a user playbook),
@@ -52,18 +53,6 @@ async function remove(id, confirmText) {
   state.flash = `Deleted ${id}.json.`;
   await loadList();
   home();
-}
-
-function deleteConfirmText(detail) {
-  const builtin = state.list.takenIds.builtin.includes(detail.id);
-  const live = detail.liveWorkers;
-  const lines = [`Delete ${detail.id}.json?`];
-  if (builtin) lines.push(`This restores the shipped '${detail.id}' definition.`);
-  if (live !== 0) {
-    const who = live === null ? 'An unknown number of live workers' : `${live} live worker${live === 1 ? '' : 's'}`;
-    lines.push(builtin ? `${who} bound to '${detail.id}' continue under the shipped definition.` : `${who} bound to '${detail.id}' lose their playbook (PLAYBOOK_UNKNOWN).`);
-  }
-  return lines.join('\n\n');
 }
 
 function drawList(selectedId) {
@@ -129,7 +118,7 @@ async function route() {
     onBack: home,
     onEdit: () => navigate({ edit: detail.id }),
     onDuplicate: () => duplicate(detail),
-    onDelete: () => remove(detail.id, deleteConfirmText(detail)),
+    onDelete: () => remove(detail.id, deleteConfirm(detail.id, { builtin: state.list.takenIds.builtin.includes(detail.id), live: detail.liveWorkers })),
   });
   if (flash) viewEl.prepend(Object.assign(document.createElement('div'), { className: 'notice good', textContent: flash }));
 }

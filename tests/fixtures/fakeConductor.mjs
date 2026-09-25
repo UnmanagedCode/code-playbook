@@ -4,7 +4,7 @@
 // startFakeConductor({ validate, handle }) → { url, calls, down, close }
 //   validate(draft)          → the validate response body (default: cannedValidate)
 //   handle(method, path, body) → { status, body } to preempt a route, or undefined
-//   calls                    every request seen: { method, path, body }
+//   calls                    every request seen: { method, path, body, contentType }
 //   down()                   stop listening; the url then refuses connections
 import http from 'node:http';
 import { promises as fs } from 'node:fs';
@@ -25,14 +25,25 @@ export async function loadFixtures() {
   return { list, details };
 }
 
-// The canned validator: a stage named `bad` is refused and located to that
-// stage; everything else passes. The fake never judges a definition itself.
+// The canned validator. It mirrors one real cc rule, with cc's message text:
+// name and description are required non-empty strings (so a blank draft is not
+// shown as valid). Otherwise it refuses only a stage named `bad`, located to
+// that stage.
 export function cannedValidate(draft) {
-  if (draft && typeof draft.stages === 'object' && draft.stages && 'bad' in draft.stages) {
-    return { ok: false, errors: [{ message: "stage 'bad': refused by the fake conductor", stage: 'bad', transition: null }] };
+  const errors = [];
+  for (const field of ['name', 'description']) {
+    if (typeof draft?.[field] !== 'string' || !draft[field].trim()) {
+      errors.push({ message: `${field} is required and must be a non-empty string`, stage: null, transition: null });
+    }
   }
-  return { ok: true };
+  if (draft && typeof draft.stages === 'object' && draft.stages && 'bad' in draft.stages) {
+    errors.push({ message: "stage 'bad': refused by the fake conductor", stage: 'bad', transition: null });
+  }
+  return errors.length ? { ok: false, errors } : { ok: true };
 }
+
+// cc's own gate on validate, with its message text.
+const BODY_NOT_JSON = { error: 'the draft must be sent as Content-Type: application/json', code: 'BODY_NOT_JSON' };
 
 export async function startFakeConductor({ validate = cannedValidate, handle } = {}) {
   const { list, details } = await loadFixtures();
@@ -45,7 +56,8 @@ export async function startFakeConductor({ validate = cannedValidate, handle } =
     let body;
     try { body = raw ? JSON.parse(raw) : undefined; } catch { body = raw; }
     const url = new URL(req.url, 'http://fake');
-    calls.push({ method: req.method, path: url.pathname, body });
+    const contentType = req.headers['content-type'];
+    calls.push({ method: req.method, path: url.pathname, body, contentType });
 
     const send = (status, payload) => {
       res.writeHead(status, { 'content-type': 'application/json' });
@@ -56,7 +68,10 @@ export async function startFakeConductor({ validate = cannedValidate, handle } =
     if (pre) return send(pre.status, pre.body);
 
     if (req.method === 'GET' && url.pathname === '/api/playbooks') return send(200, list);
-    if (req.method === 'POST' && url.pathname === '/api/playbooks/validate') return send(200, validate(body));
+    if (req.method === 'POST' && url.pathname === '/api/playbooks/validate') {
+      if (!/^application\/json\b/.test(contentType || '')) return send(400, BODY_NOT_JSON);
+      return send(200, validate(body));
+    }
     const m = /^\/api\/playbooks\/(.+)$/.exec(url.pathname);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);

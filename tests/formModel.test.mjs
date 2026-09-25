@@ -121,6 +121,15 @@ test('renameStage refuses a name another stage already has', () => {
   assert.throws(() => renameStage(form, stageByName(form, 'plan').key, 'review'), /already/);
 });
 
+test('renameStage refuses an empty or whitespace-only name, leaving the form unchanged', () => {
+  const form = formFromDetail(details.relay);
+  const key = stageByName(form, 'plan').key;
+  for (const name of ['', ' ', '\t \n']) {
+    assert.throws(() => renameStage(form, key, name), /cannot be empty/, JSON.stringify(name));
+  }
+  assert.equal(stageByName(form, 'plan').key, key);
+});
+
 test('removeStage drops entry membership, anchored needs, touching transitions; an emptied position falls back to [anchor]', () => {
   const form = formFromDetail(details.mine);
   const { form: out, impact } = removeStage(form, stageByName(form, 'build').key);
@@ -149,7 +158,7 @@ test('duplicateForm from a plugin playbook: new id, same graph', () => {
   assert.deepEqual({ ...out, id: src.id }, expectedDefinition(src));
 });
 
-test('the New playbook seed: one spawnable entry stage `start`; passes the fake validate and round-trips', () => {
+test('the New playbook seed: one spawnable entry stage `start`; fails the fake validate on name/description only, passes once named, round-trips', () => {
   const form = newPlaybookForm('fresh');
   assert.deepEqual({ id: form.id, name: form.name, description: form.description }, { id: 'fresh', name: '', description: '' });
   const out = def(form);
@@ -158,8 +167,11 @@ test('the New playbook seed: one spawnable entry stage `start`; passes the fake 
     stages: { start: { needs: [], workers: 'one', tools: { spawn_instance: 'allow' } } },
     transitions: [],
   });
-  assert.deepEqual(cannedValidate(out), { ok: true });
-  assert.deepEqual(def(formFromDetail(detailOf(out))), out);
+  assert.deepEqual(cannedValidate(out).errors.map((e) => e.message),
+    ['name is required and must be a non-empty string', 'description is required and must be a non-empty string']);
+  const named = def({ ...form, name: 'Fresh', description: 'A fresh playbook.' });
+  assert.deepEqual(cannedValidate(named), { ok: true });
+  assert.deepEqual(def(formFromDetail(detailOf(named))), named);
 });
 
 test('idNotices: reserved blocks, a built-in id warns override, another user id warns overwrite', () => {

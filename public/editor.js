@@ -4,12 +4,11 @@ import {
   definitionFromForm, renameStage, removeStage, toggleEntry, idNotices, placeErrors, newStage,
   SEND_PROMPT, SPAWN, WILDCARD,
 } from './formModel.js';
+import { driftWarning, renameWarning } from './wording.js';
 
 const VALIDATE_DEBOUNCE_MS = 300;
 const STAGE_DESC_HINT = 'Stage descriptions reach the conductor verbatim (its role prompt when this is the preferred playbook, and describe_playbook), so editing one changes what the conductor does.';
 const SPAWN_HINT = 'A stage is spawnable only when spawn_instance is declared allow or pin; "*" never confers it.';
-
-const liveText = (n) => (n === null ? 'An unknown number of live workers' : `${n} live worker${n === 1 ? ' is' : 's are'}`);
 
 // A structured form over formModel. cc judges every definition: each change is
 // validated (debounced) and Save is enabled only for the revision cc accepted.
@@ -90,10 +89,10 @@ export function openEditor(container, opts) {
     const n = idNotices(s.form.id, list.takenIds, opts.mode === 'edit' ? opts.originalId : null);
     const warn = [...n.warn];
     if (s.target && s.target.live !== 0) {
-      warn.push(`${liveText(s.target.live)} bound to '${s.target.id}'. Definitions aren't pinned to a run: saving applies to their next governed call, and a stage removed or renamed under a worker refuses it STAGE_UNKNOWN.`);
+      warn.push(driftWarning(s.target.id, s.target.live));
     }
     if (opts.mode === 'edit' && s.form.id !== opts.originalId) {
-      warn.push(`Saving under '${s.form.id}' removes ${opts.originalId}.json.${opts.originalLive !== 0 ? ` ${liveText(opts.originalLive)} bound to '${opts.originalId}' and lose their playbook (PLAYBOOK_UNKNOWN).` : ''}`);
+      warn.push(renameWarning(opts.originalId, s.form.id, opts.originalLive));
     }
     return { block: n.block, warn };
   }

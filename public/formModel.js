@@ -106,12 +106,14 @@ export function toggleEntry(form, name, on) {
   return f;
 }
 
-// Throws on a name another stage holds: a definition's stages are object keys,
-// so two cards with one name would silently collapse into one stage.
+// Throws on a blank name, and on a name another stage holds: a definition's
+// stages are object keys, so two cards with one name would silently collapse
+// into one stage.
 export function renameStage(form, key, next) {
   const f = clone(form);
   const stage = f.stages.find((s) => s.key === key);
   const prev = stage.name;
+  if (next.trim() === '') throw new Error('a stage name cannot be empty');
   if (prev === next) return f;
   if (f.stages.some((s) => s.key !== key && s.name === next)) throw new Error(`a stage named '${next}' already exists`);
   const sub = (n) => (n === prev ? next : n);

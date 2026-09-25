@@ -15,7 +15,7 @@ Details of every screen, warning and notice: [docs/features.md](docs/features.md
 
 ## Stack and layout
 
-Node ≥ 24, `express` as the only runtime dependency, and a dependency-free ES-module frontend (no build step).
+Node (the version range in `package.json`'s `engines`), `express` as the only runtime dependency, and a dependency-free ES-module frontend (no build step).
 
 ```
 conductor.plugin.json   cc plugin manifest (backend + frontend "Playbooks")

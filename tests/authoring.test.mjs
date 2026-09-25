@@ -17,6 +17,13 @@ test('a valid save writes <root>/.code-conductor/playbooks/<id>.json, creating t
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(overlay, 'my-relay.json'), 'utf8')), def);
 });
 
+test('the save path sends its draft to cc as Content-Type: application/json', async (t) => {
+  const { port, fake } = await bootWithFake(t);
+  const r = await put(port, 'x', sampleDefinition('x'));
+  assert.equal(r.status, 200);
+  assert.deepEqual(validateCalls(fake).map((c) => c.contentType), ['application/json']);
+});
+
 test('cc refusing the draft → 422 with its errors verbatim, nothing written, cc saw the exact body', async (t) => {
   const errors = [{ message: "stage 'start': nope", stage: 'start', transition: null }, { message: 'name is required', stage: null, transition: null }];
   const { port, overlay, fake } = await bootWithFake(t, { fake: { validate: () => ({ ok: false, errors }) } });

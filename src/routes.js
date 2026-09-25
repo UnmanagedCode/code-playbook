@@ -1,15 +1,22 @@
 import express from 'express';
 import { playbookPath } from './conductorClient.js';
+import { httpError } from './httpError.js';
+import { jsonErrorHandler } from './errorHandler.js';
 
 // Thin HTTP layer. Error convention matches code-conductor: a thrown error's
-// `statusCode` and `code` become the response, with `{ error, code }` as body.
+// `statusCode` and `code` become the response, with `{ error, code }` as body
+// (see errorHandler.js).
 export function buildRoutes({ conductor, authoring }) {
   const r = express.Router();
   r.use(express.json({ limit: '1mb' }));
-
-  const fail = (res, e) => {
-    res.status(e.statusCode || 500).json({ error: e.message, ...(e.code && { code: e.code }), ...e.extra });
+  // express.json leaves any other Content-Type as `{}`, which would reach cc
+  // (or the id check) as an empty draft. Refused the way cc refuses it.
+  const requireJson = (req, res, next) => {
+    if (req.is('application/json')) return next();
+    next(httpError(400, 'BODY_NOT_JSON', 'the draft must be sent as Content-Type: application/json'));
   };
+
+  const fail = (res, e) => jsonErrorHandler(e, null, res);
   const wrap = (fn) => async (req, res) => {
     try { res.json(await fn(req)); } catch (e) { fail(res, e); }
   };
@@ -24,18 +31,13 @@ export function buildRoutes({ conductor, authoring }) {
 
   r.get('/health', wrap(() => ({ ok: true })));
   r.get('/playbooks', forward('GET', () => '/api/playbooks'));
-  r.post('/playbooks/validate', forward('POST', () => '/api/playbooks/validate'));
+  r.post('/playbooks/validate', requireJson, forward('POST', () => '/api/playbooks/validate'));
   // Regex routes: a plugin id carries a `/`, and PUT/DELETE must reach the id
   // guard with whatever the path held (`..`, `a/b`, empty) rather than 404.
   r.get(/^\/playbooks\/(.+)$/, forward('GET', (req) => playbookPath(req.params[0])));
-  r.put(/^\/playbooks\/(.*)$/, wrap((req) => authoring.save(req.params[0], req.body, req.query.from)));
+  r.put(/^\/playbooks\/(.*)$/, requireJson, wrap((req) => authoring.save(req.params[0], req.body, req.query.from)));
   r.delete(/^\/playbooks\/(.*)$/, wrap((req) => authoring.remove(req.params[0])));
 
-  r.use((err, req, res, next) => {
-    if (err.type === 'entity.parse.failed' || err instanceof SyntaxError) {
-      return res.status(400).json({ error: 'invalid JSON body', code: 'BODY_INVALID' });
-    }
-    next(err);
-  });
+  r.use(jsonErrorHandler);
   return r;
 }
