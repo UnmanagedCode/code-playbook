@@ -1,0 +1,145 @@
+{
+  "id": "forge",
+  "name": "Forge — the plan is contested before it is built",
+  "description": "Relay, plus two critic passes the plan must survive.",
+  "source": "builtin",
+  "editable": false,
+  "entryStages": [
+    "plan"
+  ],
+  "stages": {
+    "plan": {
+      "needs": [],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "mode": "plan",
+            "createWorktree": true,
+            "model": "planner"
+          }
+        },
+        "set_mode": "deny",
+        "approve_plan": "deny"
+      },
+      "description": "Spawn and brief a plan worker; on its wake reject with feedback, answer its question, or abandon. There is no approving it into implement — this planner never writes code, and the handoff to one that does is yours to make. It stays here through every grill round: send each critic's findings back to it, and require a fresh `ExitPlanMode` to close the round, so the next critic and the eventual implementer are forwarded a whole plan rather than a patch to one.",
+      "spawnable": true
+    },
+    "plan-rival": {
+      "needs": [
+        {
+          "stage": "plan",
+          "position": [
+            "plan"
+          ],
+          "liveness": "live"
+        }
+      ],
+      "workers": "many",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "mode": "bypassPermissions",
+            "model": "reviewer"
+          }
+        }
+      },
+      "description": "Spawn it onto the planner's worktree and forward it the plan, briefed to read that tree and never write it: anything it leaves behind is inherited by the implementer and lands with the work. It answers with a rival approach worked to the same specificity as the plan, or with a statement that it found none better and why. Require it to check the plan's load-bearing claims about the code against the tree while it builds that rival: it is arguing about a plan nobody has fact-checked, and a rival resting on the planner's own mistake is worth nothing. One round; a second only on a finding that blocks, and waive the rest out loud — \"is there something better?\" never comes back clean on its own.",
+      "spawnable": true
+    },
+    "plan-verify": {
+      "needs": [
+        {
+          "stage": "plan-rival",
+          "position": [
+            "plan-rival"
+          ],
+          "liveness": "any"
+        }
+      ],
+      "workers": "many",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "mode": "bypassPermissions",
+            "model": "reviewer"
+          }
+        }
+      },
+      "description": "Spawn it onto the planner's worktree once the shape is settled, and forward it the plan. It reports only falsifiable defects: a claim about the code that is false, an acceptance criterion the plan cannot meet, a step that consumes an output a later step produces. Taste, naming and alternatives it would have preferred are out of scope: a finding here must be checkable against the tree or the plan. Same read-only brief as `plan-rival`, and the same one-round cap: a second pass only on a finding that blocks.",
+      "spawnable": true
+    },
+    "implement": {
+      "needs": [
+        {
+          "stage": "plan-verify",
+          "position": [
+            "plan-verify"
+          ],
+          "liveness": "any"
+        }
+      ],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "mode": "bypassPermissions"
+          }
+        },
+        "set_mode": "deny"
+      },
+      "description": "A fresh worker, not the planner — it starts with no context, so hand it the surviving plan itself, never a paraphrase: spawn it, then `send_prompt({forward})` the planner's output into it. Put it on the planner's worktree: one branch stays one merge unit, and it inherits the base the plan was written against.",
+      "spawnable": true
+    },
+    "review": {
+      "needs": [
+        {
+          "stage": "implement",
+          "position": [
+            "implement"
+          ],
+          "liveness": "live"
+        }
+      ],
+      "workers": "many",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "mode": "bypassPermissions",
+            "model": "reviewer"
+          }
+        }
+      },
+      "description": "Spawn an adversarial reviewer onto the implementer's worktree, briefed to inspect only — never edit, stage or commit — to default to skepticism, and to answer `REVIEW_CLEAN` or a findings list. Forward it the same plan the implementer got: the plan that survived both critics is the bar, not your brief. Run several at once when the work deserves more than one lens (correctness, security, test coverage), each briefed to its own; give every one of them the same bar. Never prompt a reviewer and the implementer in the same turn: they share one worktree. Relay only the findings worth fixing back to the implementer, then send the same reviewers back at its next wake. You arbitrate each round — worth fixing → another round, else land; escalate only on a call you cannot resolve.",
+      "spawnable": true
+    }
+  },
+  "transitions": [
+    {
+      "from": "plan",
+      "to": "plan",
+      "via": "send_prompt"
+    },
+    {
+      "from": "plan-rival",
+      "to": "plan-rival",
+      "via": "send_prompt"
+    },
+    {
+      "from": "plan-verify",
+      "to": "plan-verify",
+      "via": "send_prompt"
+    },
+    {
+      "from": "implement",
+      "to": "implement",
+      "via": "send_prompt"
+    },
+    {
+      "from": "review",
+      "to": "review",
+      "via": "send_prompt"
+    }
+  ],
+  "liveWorkers": 0
+}

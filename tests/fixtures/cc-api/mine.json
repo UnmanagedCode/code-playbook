@@ -1,0 +1,103 @@
+{
+  "id": "mine",
+  "name": "Mine — every field in use",
+  "description": "A user playbook exercising every key the validator admits.",
+  "source": "user",
+  "editable": true,
+  "entryStages": [
+    "review",
+    "draft"
+  ],
+  "stages": {
+    "draft": {
+      "needs": [],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "model": "planner",
+            "createWorktree": true
+          }
+        },
+        "*": "allow",
+        "kill_instance": "deny"
+      },
+      "description": "Spawn a drafting worker and brief it.",
+      "spawnable": true
+    },
+    "review": {
+      "needs": [
+        {
+          "stage": "draft",
+          "position": [
+            "draft",
+            "build"
+          ],
+          "liveness": "any"
+        }
+      ],
+      "workers": "many",
+      "tools": {
+        "spawn_instance": "allow"
+      },
+      "spawnable": true
+    },
+    "build": {
+      "needs": [
+        {
+          "stage": "draft",
+          "position": [
+            "*"
+          ],
+          "liveness": "retired"
+        }
+      ],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "mode": "bypassPermissions",
+            "baseWorktree": null
+          }
+        },
+        "send_prompt": {
+          "pin": {
+            "idleTimeoutSeconds": 300
+          }
+        },
+        "set_mode": "deny"
+      },
+      "description": "Hand the draft to a fresh builder.",
+      "spawnable": true
+    },
+    "hold": {
+      "needs": [],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": "deny"
+      },
+      "description": "Park the builder until the next round.",
+      "spawnable": false
+    }
+  },
+  "transitions": [
+    {
+      "from": "review",
+      "to": "build",
+      "via": "approve_plan",
+      "description": "Approving the review moves it on."
+    },
+    {
+      "from": "build",
+      "to": "hold",
+      "via": "send_prompt"
+    },
+    {
+      "from": "hold",
+      "to": "hold",
+      "via": "send_prompt",
+      "description": "Each round is ledgered."
+    }
+  ],
+  "liveWorkers": 2
+}

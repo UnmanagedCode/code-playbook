@@ -1,0 +1,222 @@
+{
+  "playbooks": [
+    {
+      "id": "solo",
+      "name": "Solo — one worker plans/implements/refines, separate reviewers",
+      "description": "One worker plans, implements and refines its own work; reviewers are spawned once an implementation exists and re-prompted each round.",
+      "source": "builtin",
+      "editable": false,
+      "entryStages": [
+        "plan"
+      ],
+      "spawnableStages": [
+        "plan",
+        "review"
+      ]
+    },
+    {
+      "id": "relay",
+      "name": "Relay — the planner never implements",
+      "description": "Plan and implement are distinct workers.",
+      "source": "builtin",
+      "editable": false,
+      "entryStages": [
+        "plan"
+      ],
+      "spawnableStages": [
+        "plan",
+        "implement",
+        "review"
+      ]
+    },
+    {
+      "id": "forge",
+      "name": "Forge — the plan is contested before it is built",
+      "description": "Relay, plus two critic passes the plan must survive.",
+      "source": "builtin",
+      "editable": false,
+      "entryStages": [
+        "plan"
+      ],
+      "spawnableStages": [
+        "plan",
+        "plan-rival",
+        "plan-verify",
+        "implement",
+        "review"
+      ]
+    },
+    {
+      "id": "freeform",
+      "name": "Freeform — the named escape hatch",
+      "description": "One unconstrained stage: any number of workers, with or without a worktree of their own.",
+      "source": "builtin",
+      "editable": false,
+      "entryStages": [
+        "freeform"
+      ],
+      "spawnableStages": [
+        "freeform"
+      ]
+    },
+    {
+      "id": "mine",
+      "name": "Mine — every field in use",
+      "description": "A user playbook exercising every key the validator admits.",
+      "source": "user",
+      "editable": true,
+      "entryStages": [
+        "review",
+        "draft"
+      ],
+      "spawnableStages": [
+        "draft",
+        "review",
+        "build"
+      ]
+    },
+    {
+      "id": "acme/release",
+      "name": "Acme release",
+      "description": "Research, plan, ship.",
+      "source": "plugin:acme",
+      "editable": false,
+      "entryStages": [
+        "research"
+      ],
+      "spawnableStages": [
+        "research",
+        "plan"
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "id": "broken",
+      "message": "stage 'plan': 'bogus' is not a governable tool — policy is targeted-only, so only tools taking a sessionId (plus spawn_instance) can be governed."
+    }
+  ],
+  "governableTools": [
+    {
+      "name": "answer_question",
+      "pinArgs": [
+        "answers",
+        "idleTimeoutSeconds"
+      ]
+    },
+    {
+      "name": "approve_plan",
+      "pinArgs": [
+        "feedback",
+        "idleTimeoutSeconds"
+      ]
+    },
+    {
+      "name": "describe_session",
+      "pinArgs": []
+    },
+    {
+      "name": "get_recent_messages",
+      "pinArgs": [
+        "count",
+        "includeThinking",
+        "includeToolCalls"
+      ]
+    },
+    {
+      "name": "get_transcript",
+      "pinArgs": [
+        "fromSeq",
+        "limit"
+      ]
+    },
+    {
+      "name": "interrupt_turn",
+      "pinArgs": [
+        "force"
+      ]
+    },
+    {
+      "name": "kill_instance",
+      "pinArgs": []
+    },
+    {
+      "name": "playbook_state",
+      "pinArgs": []
+    },
+    {
+      "name": "prune_session",
+      "pinArgs": [
+        "inputMode",
+        "keepLatestTurns",
+        "pruneThinking"
+      ]
+    },
+    {
+      "name": "reject_plan",
+      "pinArgs": [
+        "feedback",
+        "idleTimeoutSeconds"
+      ]
+    },
+    {
+      "name": "renew_session",
+      "pinArgs": [
+        "directive",
+        "followUp",
+        "summary"
+      ]
+    },
+    {
+      "name": "send_prompt",
+      "pinArgs": [
+        "forward",
+        "idleTimeoutSeconds",
+        "text"
+      ]
+    },
+    {
+      "name": "set_idle_timeout",
+      "pinArgs": [
+        "timeoutSeconds"
+      ]
+    },
+    {
+      "name": "set_mode",
+      "pinArgs": [
+        "mode"
+      ]
+    },
+    {
+      "name": "spawn_instance",
+      "pinArgs": [
+        "baseWorktree",
+        "createWorktree",
+        "debug",
+        "effort",
+        "mode",
+        "model",
+        "name",
+        "project",
+        "resume",
+        "thinking",
+        "worktree"
+      ]
+    }
+  ],
+  "takenIds": {
+    "builtin": [
+      "forge",
+      "freeform",
+      "relay",
+      "solo"
+    ],
+    "user": [
+      "broken",
+      "mine"
+    ],
+    "reserved": [
+      "custom"
+    ]
+  }
+}

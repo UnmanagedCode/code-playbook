@@ -1,0 +1,14 @@
+{
+  "id": "code-playbook",
+  "name": "Code Playbook",
+  "version": "0.1.0",
+  "pluginApi": 1,
+  "backend": {
+    "start": "npm start",
+    "healthPath": "/api/health"
+  },
+  "frontend": {
+    "path": "/",
+    "navLabel": "Playbooks"
+  }
+}
