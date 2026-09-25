@@ -1,0 +1,60 @@
+{
+  "id": "acme/release",
+  "name": "Acme release",
+  "description": "Research, plan, ship.",
+  "source": "plugin:acme",
+  "editable": false,
+  "entryStages": [
+    "research"
+  ],
+  "stages": {
+    "research": {
+      "needs": [],
+      "workers": "many",
+      "tools": {
+        "spawn_instance": "allow"
+      },
+      "description": "Gather the release notes.",
+      "spawnable": true
+    },
+    "plan": {
+      "needs": [
+        {
+          "stage": "research",
+          "position": [
+            "research"
+          ],
+          "liveness": "live"
+        }
+      ],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "model": "planner"
+          }
+        },
+        "*": "allow",
+        "kill_instance": "deny"
+      },
+      "spawnable": true
+    },
+    "ship": {
+      "needs": [],
+      "workers": "one",
+      "tools": {
+        "set_mode": "deny"
+      },
+      "description": "Cut the release.",
+      "spawnable": false
+    }
+  },
+  "transitions": [
+    {
+      "from": "plan",
+      "to": "ship",
+      "via": "approve_plan"
+    }
+  ],
+  "liveWorkers": 0
+}
