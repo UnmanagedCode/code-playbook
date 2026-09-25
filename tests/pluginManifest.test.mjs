@@ -16,7 +16,7 @@ test('conductor.plugin.json: the pluginApi 1 contract this plugin relies on', as
   assert.equal(manifest.backend.start, 'npm start');
   assert.equal(manifest.backend.healthPath, '/api/health');
   assert.equal(manifest.frontend.path, '/');
-  assert.equal(manifest.frontend.navLabel, 'Playbooks');
+  assert.equal(manifest.frontend.navLabel, 'code-playbook');
   assert.ok(!('mcp' in manifest), 'no MCP tools');
   assert.equal(pkg.scripts.start, 'node server.js');
 });
