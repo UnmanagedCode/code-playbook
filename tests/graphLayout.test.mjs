@@ -48,7 +48,8 @@ function assertNoEdgeCrossesANode(g) {
   }
 }
 
-// No edge's line runs through another edge's label.
+// Every label is finite, inside the canvas, and clear of the lines its
+// placement rule guarantees (guaranteedClear); no label hides an arrow.
 function assertNoLabelCrossed(g) {
   for (const e of g.edges.filter((x) => x.label)) {
     assert.ok(e.labelBox, `${e.from}->${e.to} has a label box`);
@@ -58,10 +59,42 @@ function assertNoLabelCrossed(g) {
     assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= g.width && b.y + b.h <= g.height, `${e.from}->${e.to} label inside the canvas`);
   }
   for (const e of g.edges.filter((x) => x.labelBox)) {
-    for (const other of g.edges) {
-      if (other === e) continue;
+    for (const other of guaranteedClear(g, e)) {
       const hit = samplePath(other.path).find((p) => inside(p, e.labelBox));
       assert.equal(hit, undefined, `${other.from}->${other.to} crosses the label of ${e.from}->${e.to} at ${hit}`);
+    }
+  }
+  assertNoBackingOnAnArrow(g);
+}
+
+const routed = (e) => / L /.test(e.path);
+
+// The lines the placement rule keeps clear of a label: every curve joining the
+// label's own pair, plus, for a self-loop or routed label, every routed lane
+// (lanes start right of self-loop labels and of each earlier routed label, and
+// horizontal runs never reach a row centre). Any other line may pass behind a
+// label; its opaque backing keeps the text readable there.
+function guaranteedClear(g, e) {
+  const own = g.edges.filter((x) => x.from === e.from && x.to === e.to);
+  const lanes = e.self || routed(e) ? g.edges.filter(routed) : [];
+  return [...new Set([...own, ...lanes])];
+}
+
+// graph.js pads the backing 2px each side of labelBox.
+const backing = (b) => ({ x: b.x - 2, y: b.y, w: b.w + 4, h: b.h });
+const ARROW_LEN = 12; // marker-end: 7 marker units × the 1.6 stroke width, rounded up
+
+// No backing hides where a line starts, or its arrowhead (the last ARROW_LEN
+// px before its end), whatever edge the line belongs to.
+function assertNoBackingOnAnArrow(g) {
+  for (const e of g.edges.filter((x) => x.labelBox)) {
+    const box = backing(e.labelBox);
+    for (const other of g.edges) {
+      const pts = samplePath(other.path);
+      const end = pts.at(-1);
+      const tip = [pts[0], ...pts.filter((p) => Math.hypot(p[0] - end[0], p[1] - end[1]) <= ARROW_LEN)];
+      const hit = tip.find((p) => inside(p, box));
+      assert.equal(hit, undefined, `the label of ${e.from}->${e.to} covers an end or arrowhead of ${other.from}->${other.to} at ${hit}`);
     }
   }
 }
@@ -190,4 +223,28 @@ test('a transition and needs between the same pair: the transition label is clea
   assert.equal(g.edges.filter((e) => e.from === 'a' && e.to === 'b').length, 3);
   assertNoEdgeCrossesANode(g);
   assertNoLabelCrossed(g);
+});
+
+test('a label may sit over another pair\'s line: the scoped check holds, and no arrowhead is covered', async (t) => {
+  const s = (needs = []) => ({ needs });
+  const shapes = {
+    'another pair\'s curve crosses a forward label': {
+      entryStages: ['a', 'b'],
+      stages: { a: s(), b: s(), c: s([{ stage: 'b' }]) },
+      transitions: [{ from: 'a', to: 'c', via: 'get_recent_messages' }],
+    },
+    'a back-edge lane crosses a forward label': {
+      entryStages: ['s0'],
+      stages: { s0: s(), s1: s() },
+      // A forward label long enough to reach the lane the back edge s1→s0 takes.
+      transitions: [{ from: 's0', to: 's1', via: 'get_recent_messages' }, { from: 's1', to: 's0', via: 'reject_plan' }],
+    },
+  };
+  for (const [name, detail] of Object.entries(shapes)) {
+    await t.test(name, () => {
+      const g = layoutGraph(detail);
+      assertNoEdgeCrossesANode(g);
+      assertNoLabelCrossed(g);
+    });
+  }
 });
