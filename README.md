@@ -27,7 +27,34 @@ harness/playwright/     visual-verification golden path over the fake cc
 docs/                   features, protocol, architecture
 ```
 
-## Run
+## Add it to code-conductor
+
+Needs a cc that serves `/api/playbooks`. A plugin is an ordinary cc project whose checkout holds `conductor.plugin.json`; cc's own `docs/plugins.md` has the full rules. Two ways in:
+
+**A. Through the Plugin Library** (cc clones, installs and enables it):
+1. Write a library entry at `<projects root>/.code-conductor/plugins/library/code-playbook.json`:
+   ```json
+   {
+     "id": "code-playbook",
+     "name": "Code Playbook",
+     "description": "View and author playbooks",
+     "repo": "<clone URL>",
+     "postClone": "npm install",
+     "postPull": "npm install"
+   }
+   ```
+   `repo` is a URL: `https://…` / `git://…` for a remote, or `file:///<absolute path>` for a local bare repo or git bundle. A plain path is refused.
+2. **Settings → Plugins → Library → Install**. cc clones it into `<projects root>/.plugins/code-playbook`, registers it as a project, runs `postClone` and enables it.
+3. Open the **Playbooks** tab. The first request starts the backend; **Start** on its Settings → Plugins row does the same.
+
+Later updates: **Update** on the same Library entry (`git pull --ff-only`, then `postPull`, then a restart if the plugin was running).
+
+**B. From a project cc already has** (e.g. this repo, registered as a cc project):
+1. Run `npm install` in the checkout. cc starts the backend with `npm start`, which needs `express`.
+2. **Settings → Plugins → Rescan**. A new plugin project is undiscovered until a Rescan. If the main checkout has no manifest yet, the first valid manifest among its worktrees is used, and enabling defaults to that worktree.
+3. **Enable** the Code Playbook row, then open the **Playbooks** tab.
+
+## Run standalone
 
 ```bash
 npm install
