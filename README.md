@@ -1,6 +1,6 @@
 # code-playbook
 
-A code-conductor (cc) plugin that adds a **Playbooks** tab: view every playbook cc runs conductors under, and author your own in a structured form editor.
+A code-conductor (cc) plugin that adds a **code-playbook** tab: view every playbook cc runs conductors under, and author your own in a structured form editor.
 
 A playbook is a stage graph that decides which tools a conductor may call on a worker at each stage. cc ships built-in playbooks, plugins can contribute more, and users add their own as JSON files in cc's overlay dir. This plugin makes those files something you edit in a form rather than by hand.
 
@@ -18,7 +18,7 @@ Details of every screen, warning and notice: [docs/features.md](docs/features.md
 Node (the version range in `package.json`'s `engines`), `express` as the only runtime dependency, and a dependency-free ES-module frontend (no build step).
 
 ```
-conductor.plugin.json   cc plugin manifest (backend + frontend "Playbooks")
+conductor.plugin.json   cc plugin manifest (backend + frontend "code-playbook")
 server.js               entry: wires the modules, serves public/, listens on $PORT
 src/                    backend: cc client, overlay store, save/delete, HTTP routes
 public/                 frontend: viewer, graph, editor; formModel.js and graphLayout.js are pure
@@ -45,14 +45,14 @@ Needs a cc that serves `/api/playbooks`. A plugin is an ordinary cc project whos
    ```
    `repo` is a URL: `https://…` / `git://…` for a remote, or `file:///<absolute path>` for a local bare repo or git bundle. A plain path is refused.
 2. **Settings → Plugins → Library → Install**. cc clones it into `<projects root>/.plugins/code-playbook`, registers it as a project, runs `postClone` and enables it.
-3. Open the **Playbooks** tab. The first request starts the backend; **Start** on its Settings → Plugins row does the same.
+3. Open the **code-playbook** tab. The first request starts the backend; **Start** on its Settings → Plugins row does the same.
 
 Later updates: **Update** on the same Library entry (`git pull --ff-only`, then `postPull`, then a restart if the plugin was running).
 
 **B. From a project cc already has** (e.g. this repo, registered as a cc project):
 1. Run `npm install` in the checkout. cc starts the backend with `npm start`, which needs `express`.
 2. **Settings → Plugins → Rescan**. A new plugin project is undiscovered until a Rescan. If the main checkout has no manifest yet, the first valid manifest among its worktrees is used, and enabling defaults to that worktree.
-3. **Enable** the Code Playbook row, then open the **Playbooks** tab.
+3. **Enable** the Code Playbook row, then open the **code-playbook** tab.
 
 ## Run standalone
 
