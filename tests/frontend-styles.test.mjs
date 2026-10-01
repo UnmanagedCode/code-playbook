@@ -1,8 +1,8 @@
 // Pins: public/styles.css is dark-only, declares code-conductor's shell tokens
 // on :root (values checked against the host's own stylesheet when it is on
 // disk), colours everything else with those tokens or the host's own literals,
-// and styles controls the way the host does. Reads the stylesheet as text:
-// happy-dom doesn't resolve cascaded custom properties reliably.
+// and styles controls the way the host does. Reads the stylesheet as text: the
+// node:test suite has no DOM to compute styles in.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -32,12 +32,17 @@ function declarations(body) {
   return out;
 }
 
-// Top-level rules only: the @media block is dropped before parsing.
-const topLevel = css.replace(ROOT_RE, '').replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
-const rules = [...topLevel.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+// Innermost `selector { body }` pairs: an @media prelude never matches, but
+// the rules nested inside it do.
+const parseRules = (text) => [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
   selectors: m[1].split(',').map((s) => s.trim().replace(/\s+/g, ' ')),
   body: m[2],
 }));
+const withoutRoot = css.replace(ROOT_RE, '');
+// Every rule outside :root, @media-nested ones included.
+const allRules = parseRules(withoutRoot);
+// Top-level rules only, for the cascade checks: @media blocks are dropped.
+const rules = parseRules(withoutRoot.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, ''));
 
 // The value `prop` ends up with across every top-level rule listing `selector`
 // in its selector list (equal specificity, so the last declaration wins).
@@ -77,7 +82,7 @@ test('every var(--name) used is declared on :root', () => {
 test("colours outside :root are tokens or the host's own literals", () => {
   const rootDecls = declarations(root);
   const tints = new Set(['0,0,0', ...TINT_TOKENS.map((t) => rgb(rootDecls.get(t) ?? '#000000'))]);
-  const values = rules.flatMap((r) => [...declarations(r.body).values()]).join('\n');
+  const values = allRules.flatMap((r) => [...declarations(r.body).values()]).join('\n');
   for (const [hex] of values.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
     assert.ok(HOST_LITERALS.includes(hex.toLowerCase()), `hard-coded colour ${hex}`);
   }
