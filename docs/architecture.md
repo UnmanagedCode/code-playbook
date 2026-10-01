@@ -65,6 +65,7 @@ Nothing is written without cc's `ok:true` for that exact body.
 | `saveGate.test.mjs` | Save enabled only for the accepted current revision; a refused rename blocks it while its stage exists |
 | `wording.test.mjs` | the live-worker sentences for a count of 1, many and unknown |
 | `static.test.mjs` | frontend served, relative refs, absolute bridge tag |
+| `frontend-styles.test.mjs` | `public/styles.css` is dark-only; `:root` declares code-conductor's shell token names and every `var(--…)` used; colours outside `:root` are tokens, tints of `--accent`/`--green`/`--amber`/`--red`/black, or the host's own literals (`HOST_LITERALS`); controls carry the host radius and the primary, disabled and danger button looks; `index.html`'s `theme-color` equals `--bg`; `:root` values equal the host's `:root` (skipped unless `$CC_PROJECTS_ROOT/code-conductor/public/styles.css` exists) |
 | `pluginManifest.test.mjs` | manifest fields cc relies on |
 | `fixtures.test.mjs` | the fixtures match `tests/contractShape.mjs` |
 | `real-conductor.test.mjs` | skipped unless `RUN_REAL_CC=1` and `CONDUCTOR_URL`: live contract shape, every live playbook round-tripped through cc's real validator, the New playbook seed |
