@@ -59,6 +59,8 @@ This file, each project's `CLAUDE.md`, everything they import, and the conductor
 
 # Project conventions
 
+> Convention unavailable: `code-playwright/visual-verification`.
+
 ## Design guidelines
 - YAGNI — build only what a current, concrete requirement needs; no speculative abstractions, config knobs, or extension points "for later." If code isn't exercised by a real caller or test, delete it rather than keep it "just in case."
 - One responsibility per module — when a module takes on a second concern, extract it as a composed collaborator behind a stable interface; no god-modules.
@@ -92,11 +94,3 @@ This overrides the workspace README-maintenance update rule here: README changes
 - Migrations must self-check "already applied" and no-op if so; never destroy data you can't reconstruct — move it aside instead of deleting it.
 - APIs with no external consumers owe no stability guarantee — change the API and its callers together instead of keeping an old shape alive "just in case."
 - Exception: tolerate read-time variance only for formats owned by external tools you can't migrate (e.g. a third-party CLI's session files); everything you own gets migrated, not shimmed.
-
-# Visually verify UX changes
-
-Always test and visually verify UX changes before considering them done — don't rely on automated tests alone for UI, layout, or visual changes.
-
-- If this project already has a local visual-verification harness — check `harness/playwright/` first, else wherever its dev/helper scripts live — use it to capture a screenshot and confirm the change renders correctly.
-- If not, create one using the shared `code-playwright` utilities as a base — see `$CC_PROJECTS_ROOT/.plugins/code-playwright/README.md`, "Importing from another project", for how to import and wire it up.
-- Drive the actual golden path (and any obviously-affected edge cases) through the harness, not just a single static screenshot, when the change affects interaction or state.
