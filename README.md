@@ -15,15 +15,17 @@ Details of every screen, warning and notice: [docs/features.md](docs/features.md
 
 ## Stack and layout
 
-Node (the version range in `package.json`'s `engines`), `express` as the only runtime dependency, and a dependency-free ES-module frontend (no build step).
+- **Backend:** Node (the version range in `package.json`'s `engines`) with `express` as the only runtime dependency.
+- **Frontend:** React + Vite + Tailwind v4 + cc's shadcn/Radix components + lucide icons, all devDependencies, built into `frontend/dist/` by `npm install` (the `prepare` script). It meets the host contract and security practices of cc's `docs/plugin-ui.md` (Parts 1 and 2) and follows its reference setup (Part 3): it follows cc's light/dark theme live, uses only relative URLs, and renders all content as text under a CSP.
 
 ```
 conductor.plugin.json   cc plugin manifest (backend + frontend "Code Playbook")
-server.js               entry: wires the modules, serves public/, listens on $PORT
-src/                    backend: cc client, overlay store, save/delete, HTTP routes
-public/                 frontend: viewer, graph, editor; formModel.js and graphLayout.js are pure
-tests/                  node:test suites, a fake cc and contract fixtures
-harness/playwright/     visual-verification golden path over the fake cc
+server.js               entry: wires the modules, serves frontend/dist, listens on $PORT
+src/                    backend: cc client, overlay store, save/delete, HTTP routes,
+                        static.js (UI serving) and securityHeaders.js (CSP + nosniff)
+frontend/               UI source: index.html, src/ (App, components, lib, pure model/), public/theme-init.js
+tests/                  node:test suites, a fake cc, contract fixtures, edit scripts with golden saved files
+harness/playwright/     golden path over the fake cc; embedded check on a scratch cc
 docs/                   features, protocol, architecture
 ```
 
@@ -50,16 +52,19 @@ Needs a cc that serves `/api/playbooks`. A plugin is an ordinary cc project whos
 Later updates: **Update** on the same Library entry (`git pull --ff-only`, then `postPull`, then a restart if the plugin was running).
 
 **B. From a project cc already has** (e.g. this repo, registered as a cc project):
-1. Run `npm install` in the checkout. cc starts the backend with `npm start`, which needs `express`.
+1. Run `npm install` in the checkout. It installs `express` (cc starts the backend with `npm start`) and builds the UI into `frontend/dist/`.
 2. **Settings → Plugins → Rescan**. A new plugin project is undiscovered until a Rescan. If the main checkout has no manifest yet, the first valid manifest among its worktrees is used, and enabling defaults to that worktree.
 3. **Enable** the Code Playbook row, then open the **Code Playbook** tab.
 
 ## Run standalone
 
 ```bash
-npm install
+npm install                                                         # also builds the UI
 CONDUCTOR_URL=http://127.0.0.1:<cc-port> PROJECTS_ROOT=/path/to/projects npm start
+npm run dev                                                         # Vite dev server, API proxied to 127.0.0.1:7310 (or $PLUGIN_BACKEND)
 ```
+
+Without a build (`frontend/dist/index.html` missing) the backend still starts, logs the missing file, and answers `/` with a plain-text 503 saying to run `npm install`; the API keeps working.
 
 | Env | Meaning | When absent |
 |---|---|---|
@@ -73,12 +78,13 @@ cc sets `PORT`, `CONDUCTOR_URL` and `PROJECTS_ROOT` when it starts the plugin.
 ## Test
 
 ```bash
-npm test                                                            # offline, against the fake cc
-RUN_REAL_CC=1 CONDUCTOR_URL=http://127.0.0.1:<cc-port> npm test     # adds the live-cc contract + validator checks
-npm run harness                                                     # screenshots in harness/playwright/screenshots/
+npm test                                                                  # node:test suites, then tsc, then vitest — offline, against the fake cc
+RUN_REAL_CC=1 CONDUCTOR_URL=http://127.0.0.1:<cc-port> npm run test:web   # adds the live-cc contract + validator checks
+npm run harness                                                           # builds, then the golden path; screenshots in harness/playwright/screenshots/
+CC_URL=http://127.0.0.1:<scratch-port> npm run harness:embedded           # inside a scratch cc's shell, started from a separate cc clone (setup: docs/architecture.md → Visual harness)
 ```
 
-`npm run harness` needs `CC_PROJECTS_ROOT` pointing at a projects root with the `code-playwright` plugin installed.
+Both harnesses need `CC_PROJECTS_ROOT` pointing at a projects root with the `code-playwright` plugin installed. Run the embedded one only against a scratch cc: it saves and deletes a playbook.
 
 ## Known limitations
 
@@ -86,6 +92,9 @@ npm run harness                                                     # screenshot
 - Built-in and plugin playbooks are read-only here. Duplicate one, or save a user playbook under a built-in's id to override it.
 - No raw-JSON editor.
 - The harness's fake cc serves a static list, so a playbook saved in the harness does not appear in its list.
+- The UI is built by `npm install`. A cc started with `NODE_ENV=production` or `npm_config_omit=dev` makes the Library hook skip the devDependencies, the build fails, and the tab shows the unbuilt 503.
+- Needs the Node version in `package.json`'s `engines` (Vite 8 and Vitest require it).
+- Follows cc's (or, standalone, the OS's) light/dark theme; it has no theme toggle of its own.
 
 More: [docs/protocol.md](docs/protocol.md) (REST surface and on-disk format) · [docs/architecture.md](docs/architecture.md) (modules, tests, harness).
 

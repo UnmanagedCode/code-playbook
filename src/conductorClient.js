@@ -1,4 +1,5 @@
 import { httpError } from './httpError.js';
+import { playbookIdPath } from './playbookId.js';
 
 // The only module that talks to code-conductor. Every call answers
 // `{ status, body }`, where `body` is cc's parsed JSON (or its raw text when cc
@@ -52,12 +53,10 @@ export function createConductorClient({ baseUrl, timeoutMs = 5000 }) {
   };
 }
 
-// Encodes each segment of a (possibly plugin-namespaced `a/b`) playbook id.
-// An empty, `.` or `..` segment is refused: encodeURIComponent leaves dots
-// alone and URL resolution would turn them into a path to another cc route.
+// cc's path for a (possibly plugin-namespaced `a/b`) playbook id. An id with an
+// empty, `.` or `..` segment is refused (playbookIdPath).
 export function playbookPath(id) {
-  if (id.split('/').some((seg) => seg === '' || seg === '.' || seg === '..')) {
-    throw httpError(400, 'PLAYBOOK_ID_INVALID', `'${id}' is not a playbook id: it has an empty, '.' or '..' segment`);
-  }
-  return `/api/playbooks/${id.split('/').map(encodeURIComponent).join('/')}`;
+  const p = playbookIdPath(id);
+  if (p === null) throw httpError(400, 'PLAYBOOK_ID_INVALID', `'${id}' is not a playbook id: it has an empty, '.' or '..' segment`);
+  return `/api/playbooks/${p}`;
 }

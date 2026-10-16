@@ -33,7 +33,7 @@ Errors are `{error, code}` (plus `errors` for `PLAYBOOK_INVALID`):
 | 503 | `PROJECTS_ROOT_UNSET` | `PROJECTS_ROOT` absent (writes and deletes) |
 | 500 | `INTERNAL` | anything unexpected; the error itself is logged by the backend, never sent |
 
-Every error, including one raised before a route runs, leaves as this JSON (`jsonErrorHandler` in `src/errorHandler.js`, installed on the API router and the app); express's HTML error page, which carries a stack, is never sent. An unknown non-API path gets express's plain "Cannot GET" 404.
+Every error, including one raised before a route runs, leaves as this JSON (`jsonErrorHandler` in `src/errorHandler.js`, installed on the API router and the app); express's HTML error page, which carries a stack, is never sent. Any unknown path, under `/api` or not, answers `404 {"error":"not found","code":"NOT_FOUND"}`.
 
 The id guard is a path-safety check only. Whether an id is a valid playbook slug is decided by cc's validator on the body.
 
@@ -53,6 +53,41 @@ Answer: `{ok:true, id}`. Nothing is written on any refusal, or when cc can't be 
 1. Id guard. 2. Reserved check against cc's `takenIds.reserved` (so cc's `custom.json` catalog store is never touched). 3. Unlink `<id>.json`; missing → 404.
 
 Answer: `{ok:true, id}`.
+
+## Response headers
+
+Every response express produces — pages, assets, API answers, the 404, the unbuilt 503 and every error — carries the headers below, and none carries `X-Powered-By` (disabled in `server.js`).
+
+Node's own HTTP parser answers some malformed requests before express sees them, and those answers carry neither header: a malformed request line gets `400 Bad Request`, an oversized header block `431 Request Header Fields Too Large`.
+
+| Header (express responses) | Value |
+|---|---|
+| `Content-Security-Policy` | `CSP` in `src/securityHeaders.js` |
+| `X-Content-Type-Options` | `nosniff` |
+
+What the CSP's directives allow:
+
+| Directive | Allows |
+|---|---|
+| `default-src 'none'` | nothing not listed below (no images, frames, media, workers) |
+| `script-src 'self'` | the bundle, `theme-init.js` and cc's `/pluginBridge.js`; no inline script or handler |
+| `style-src 'self' 'unsafe-inline'` | the bundle's CSS, cc's `/pluginTheme.css`, and the `<style>` Radix Dialog injects for its scroll lock |
+| `font-src 'self'` | cc's Geist fonts under `/pluginTheme/fonts/` |
+| `connect-src 'self'` | `fetch` to this backend (relative `api/…`) |
+| `base-uri 'none'`, `form-action 'none'` | no `<base>`; no native form submission |
+| `frame-ancestors 'self'` | framing by cc's own origin only |
+
+## Static UI
+
+Served by `serveUi` (`src/static.js`) from `frontend/dist/`, for GET and HEAD, with `Cache-Control: no-store`:
+
+| Path | Answer |
+|---|---|
+| `/`, `/index.html` (any query) | `index.html`; while it is missing, `503 text/plain; charset=utf-8` `UI not built — run npm install` |
+| a path matching `ASSET_RE` | that file, when its real path (symlinks resolved) lies inside the real dist dir; otherwise, or missing → the 404 |
+| anything else, including `/pluginBridge.js`, `/pluginTheme.css`, `.map` files and nested paths | `404 {"error":"not found","code":"NOT_FOUND"}` |
+
+There is no SPA fallback: routes live in the query string, and cc's host URLs 404 standalone.
 
 ## On disk
 
