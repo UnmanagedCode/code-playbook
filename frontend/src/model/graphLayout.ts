@@ -16,7 +16,7 @@ export interface GraphNode { id: string; layer: number; entry: boolean; x: numbe
 export interface Box { x: number; y: number; w: number; h: number }
 export interface GraphEdge {
   kind: string; from: string; to: string; label?: string; self: boolean; back: boolean;
-  path?: string; labelX?: number; labelY?: number; anchor?: string; labelBox?: Box;
+  path?: string; labelX?: number; labelY?: number; anchor?: 'start' | 'middle'; labelBox?: Box;
 }
 export interface GraphLayout { nodes: GraphNode[]; edges: GraphEdge[]; width: number; height: number }
 interface Curve { x1: number; y1: number; x2: number; y2: number; cx: number; cy: number }
