@@ -1,7 +1,8 @@
 // Embedded check (npm run harness:embedded) against a SCRATCH cc that already
 // runs this checkout as its code-playbook plugin (docs/architecture.md →
 // Visual harness has the setup). Never point it at the cc you work in: it
-// saves a playbook through the plugin.
+// saves a playbook through the plugin. Start that scratch cc from a separate
+// clone of cc: run-isolated.sh rebuilds its own checkout's web/dist.
 //
 //   CC_URL                 the scratch cc's base URL (required)
 //   CC_SCRATCH_PROJECTS    the scratch cc's projects root; when set, the save is
@@ -18,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { loadHarness } from './codePlaywright.mjs';
 
 const CC = process.env.CC_URL?.replace(/\/$/, '');
-if (!CC) throw new Error('CC_URL is not set: start a scratch cc (scripts/run-isolated.sh) with this plugin enabled');
+if (!CC) throw new Error('CC_URL is not set: start a scratch cc from a separate clone of cc, never the checkout a live cc runs from (scripts/run-isolated.sh rebuilds its web/dist), and enable this plugin there; see docs/architecture.md → Visual harness');
 const SCRATCH = process.env.CC_SCRATCH_PROJECTS;
 const SHOTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screenshots');
 await fs.mkdir(SHOTS, { recursive: true });

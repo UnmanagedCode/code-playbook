@@ -127,6 +127,7 @@ Nothing is written without cc's `ok:true` for that exact body.
 | `model/realConductor.test.ts` | skipped unless `RUN_REAL_CC=1` and `CONDUCTOR_URL`: live contract shape, every live playbook round-tripped through cc's real validator, the New playbook seed |
 | `lib/route.test.ts`, `lib/api.test.ts`, `themeInit.test.ts` | routes, no hash, one history entry per navigation; the exact wire format, `ApiError`s, a `/`-led path and every traversal id refused before any request; standalone theme follows the OS, embedded does nothing |
 | `components/App.test.tsx` | list skeleton then groups, list 404, selection, read-only edit route, a reloaded draft URL, Delete (confirm, DELETE, flash) and its failure, Delete file only for a user file, stale detail dropped, a traversal id refused without a request, a throwing graph, detail, list or dialog contained by its error boundary (the crash screen's Back going home, the list pane recovering on the next good load, a throwing id dialog closed while Delete's confirm still works and Duplicate opens again once the data is good), a save opening the saved detail with the flash, the flash cleared by the next navigation, `release-copy` for `acme/release` |
+| `components/ConfirmDialog.test.tsx` | Escape and Cancel close the confirm without confirming and return focus to the opener; confirming runs the action |
 | `components/IdDialog.test.tsx` | notices, the Continue gate, Enter resolves the trimmed id, Escape/Cancel resolve null and return focus, initial id selected |
 | `components/StageGraph.test.tsx` | nodes and edges, click/Enter/Space, no content-derived attributes |
 | `components/security.test.tsx` | hostile content renders as text in the detail, list and editor: no loading, linking, submitting or styling element, no handler attribute, SVG only from icons and the graph, `style` only on Radix's checkbox indicator with Radix's value |
@@ -152,16 +153,21 @@ Fixtures:
 - screenshots go to `harness/playwright/screenshots/` (git-ignored);
 - with `CONDUCTOR_URL` set, it uses that live cc and captures only the list and relay's detail.
 
-`npm run harness:embedded` → `harness/playwright/embedded.mjs`, against a **scratch** cc only (it saves and deletes a playbook):
+`npm run harness:embedded` → `harness/playwright/embedded.mjs`, against a **scratch** cc only (it saves and deletes a playbook).
+
+- **Start the scratch cc from a separate clone of cc, never from the checkout a live cc runs from.** `scripts/run-isolated.sh` starts `server.ts`, which runs `ensureWebBuild`: that rebuilds the checkout's `web/dist` in place, underneath the cc serving it.
+- The clone shares the checkout's `node_modules` through a symlink. In a checkout whose `node_modules` is a symlink, build with `npm run prepare`, never `npm install` (it would rewrite the linked `node_modules`).
 
 ```bash
-cd <cc-checkout> && CC_ISOLATED_ROOT=$(mktemp -d) PORT=<port> scripts/run-isolated.sh &
+CC=$(mktemp -d)/cc && git clone --no-hardlinks <cc-checkout> "$CC" && ln -s <cc-checkout>/node_modules "$CC/node_modules"
+(cd "$CC" && CC_ISOLATED_ROOT=$(mktemp -d) PORT=<port> scripts/run-isolated.sh) &
 B=http://127.0.0.1:<port>
 curl -XPOST $B/api/projects/external -H 'content-type: application/json' -d '{"name":"code-playbook","path":"<this checkout>"}'
 curl -XPOST $B/api/plugins/rescan; curl -XPOST $B/api/plugins/code-playbook/enable; curl -XPOST $B/api/plugins/code-playbook/start
 CC_URL=$B CC_SCRATCH_PROJECTS=<CC_ISOLATED_ROOT>/projects CC_PROJECTS_ROOT=<projects root with code-playwright> npm run harness:embedded
 curl -XPOST $B/api/plugins/code-playbook/stop   # before stopping the scratch cc
 git -C <this checkout> checkout -- CONVENTIONS.md   # the scratch cc's rescan/enable rewrote it
+rm -rf "$(dirname "$CC")"                         # the clone, after stopping the scratch cc
 ```
 
 The scratch cc's rescan and enable regenerate this checkout's `CONVENTIONS.md` without the code-playwright fragment (its projects root has no code-playwright plugin): restore it with `git -C <this checkout> checkout -- CONVENTIONS.md` afterwards (cc's own repo tracks a `CONVENTIONS.md` too, so name the checkout), and never commit it.

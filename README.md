@@ -81,7 +81,7 @@ cc sets `PORT`, `CONDUCTOR_URL` and `PROJECTS_ROOT` when it starts the plugin.
 npm test                                                                  # node:test suites, then tsc, then vitest — offline, against the fake cc
 RUN_REAL_CC=1 CONDUCTOR_URL=http://127.0.0.1:<cc-port> npm run test:web   # adds the live-cc contract + validator checks
 npm run harness                                                           # builds, then the golden path; screenshots in harness/playwright/screenshots/
-CC_URL=http://127.0.0.1:<scratch-port> npm run harness:embedded           # inside a scratch cc's shell (setup: docs/architecture.md → Visual harness)
+CC_URL=http://127.0.0.1:<scratch-port> npm run harness:embedded           # inside a scratch cc's shell, started from a separate cc clone (setup: docs/architecture.md → Visual harness)
 ```
 
 Both harnesses need `CC_PROJECTS_ROOT` pointing at a projects root with the `code-playwright` plugin installed. Run the embedded one only against a scratch cc: it saves and deletes a playbook.
