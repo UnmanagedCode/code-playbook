@@ -102,7 +102,7 @@ export function Editor({ mode, form, title, originalId, originalLive, list, onSa
         </div>
       </div>
       {n.block && <Notice variant="destructive" text={n.block} />}
-      {n.warn.map((w) => <Notice key={w} variant="warning" text={w} />)}
+      {n.warn.map((w, i) => <Notice key={i} variant="warning" text={w} />)}
       {s.saveError && <Notice variant="destructive" text={s.saveError} />}
 
       <section aria-label="Playbook" className="grid gap-4 rounded-xl border bg-card p-4 text-card-foreground shadow-xs sm:p-5">

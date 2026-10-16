@@ -8,6 +8,7 @@ import { at, fakeApi, fixtures, json } from '@/test/fakeApi';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   at('/');
 });
 const nav = () => screen.getByRole('navigation', { name: 'Playbooks' });
@@ -124,4 +125,116 @@ test('a stale detail response is ignored', async () => {
   await new Promise((r) => setTimeout(r, 20));
   expect(screen.queryByRole('heading', { name: fixtures.details.relay.name })).toBeNull();
   expect(screen.getByRole('heading', { name: fixtures.details.solo.name })).toBeTruthy();
+});
+
+// Invariant: a detail the viewer cannot draw (here an entry stage cc never declared, which the layout cannot place)
+// loses only its graph: the rest of the detail, the list and navigation keep working.
+test('a graph that throws leaves the rest of the detail', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const broken = { ...fixtures.details.relay, entryStages: ['ghost'] };
+  fakeApi({ details: { ...fixtures.details, relay: broken } });
+  at('?playbook=relay');
+  render(<App />);
+  expect(await screen.findByText(/^The stage graph cannot be drawn: /)).toBeTruthy();
+  expect(screen.getByRole('heading', { name: broken.name })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'plan' })).toBeTruthy();
+  await userEvent.click(within(nav()).getByRole('button', { name: /^solo/ }));
+  expect(await screen.findByRole('group', { name: 'stage graph of solo' })).toBeTruthy();
+});
+
+// Invariant: a detail that throws while rendering shows a message in the main pane; the list stays, and the next
+// navigation renders normally again.
+test('a detail that throws while rendering shows a message and keeps the list', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  fakeApi({ details: { ...fixtures.details, relay: { id: 'relay' } as never } });
+  at('?playbook=relay');
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: 'Cannot show relay' })).toBeTruthy();
+  expect(within(nav()).getByRole('button', { name: /^solo/ })).toBeTruthy();
+  await userEvent.click(within(nav()).getByRole('button', { name: /^solo/ }));
+  expect(await screen.findByRole('heading', { name: fixtures.details.solo.name })).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: 'Cannot show relay' })).toBeNull();
+});
+
+// Invariant: a traversal id never produces a request outside api/playbooks/; the route says it cannot open it.
+test('a traversal id is refused without a request', async () => {
+  for (const id of ['../../api/health', '..', 'a/./b', 'acme//release']) {
+    const { calls } = fakeApi();
+    at(`?playbook=${encodeURIComponent(id)}`);
+    const { unmount } = render(<App />);
+    expect(await screen.findByRole('heading', { name: `Cannot open ${id}` })).toBeTruthy();
+    expect(calls.map((c) => c.url)).toEqual(calls.map(() => 'api/playbooks'));
+    unmount();
+    vi.unstubAllGlobals();
+  }
+});
+
+// Invariant: after a save the app opens the saved playbook when the reloaded list has it, with the flash on its detail.
+test('a saved draft that cc lists opens its detail with the flash', async () => {
+  const fresh = { ...fixtures.details.mine, id: 'fresh', name: 'Fresh', description: 'A fresh playbook.', liveWorkers: 0 };
+  let saved = false;
+  fakeApi({
+    details: { ...fixtures.details, fresh },
+    handle: (m, url) => {
+      if (m === 'PUT') saved = true;
+      if (url === 'api/playbooks' && saved) {
+        const { id, name, description, source, editable, entryStages } = fresh;
+        return json({ ...fixtures.list, playbooks: [...fixtures.list.playbooks, { id, name, description, source, editable, entryStages, spawnableStages: [] }] });
+      }
+      return undefined;
+    },
+  });
+  render(<App />);
+  await userEvent.click(await within(nav()).findByRole('button', { name: 'New playbook' }));
+  const dialog = await screen.findByRole('dialog');
+  await userEvent.type(within(dialog).getByRole('textbox', { name: 'Id' }), 'fresh{Enter}');
+  const playbook = await screen.findByRole('region', { name: 'Playbook' });
+  await userEvent.type(within(playbook).getByRole('textbox', { name: 'Name' }), 'Fresh');
+  await userEvent.type(within(playbook).getByRole('textbox', { name: 'Description' }), 'A fresh playbook.');
+  const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  await waitFor(() => expect(save.disabled).toBe(false), { timeout: 3000 });
+  await userEvent.click(save);
+  await waitFor(() => expect(location.search).toBe('?playbook=fresh'));
+  expect(await screen.findByRole('heading', { name: 'Fresh' })).toBeTruthy();
+  expect(screen.getByRole('alert').textContent).toBe('Saved fresh.json.');
+});
+
+// Invariant: a flash belongs to the screen its own navigation opened; the next navigation clears it.
+test('the flash is cleared by the next navigation', async () => {
+  fakeApi();
+  at('?edit=mine');
+  render(<App />);
+  const save = await screen.findByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  await waitFor(() => expect(save.disabled).toBe(false), { timeout: 3000 });
+  await userEvent.click(save);
+  await waitFor(() => expect(location.search).toBe('?playbook=mine'));
+  await screen.findByRole('heading', { name: fixtures.details.mine.name });
+  expect(screen.getByText('Saved mine.json.')).toBeTruthy();
+  await userEvent.click(within(nav()).getByRole('button', { name: /^relay/ }));
+  await screen.findByRole('heading', { name: fixtures.details.relay.name });
+  expect(screen.queryByText('Saved mine.json.')).toBeNull();
+  await userEvent.click(within(nav()).getByRole('button', { name: /^mine/ }));
+  await screen.findByRole('heading', { name: fixtures.details.mine.name });
+  expect(screen.queryByText('Saved mine.json.')).toBeNull();
+});
+
+// Invariant: Duplicate suggests the last `/` segment of a plugin id plus `-copy`.
+test('duplicating acme/release suggests release-copy', async () => {
+  fakeApi();
+  at('?playbook=acme%2Frelease');
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Duplicate' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Duplicate acme/release' });
+  expect((within(dialog).getByRole('textbox', { name: 'Id' }) as HTMLInputElement).value).toBe('release-copy');
+});
+
+// Invariant: Delete file is offered only for a load error whose id is a user file.
+test('a load error that is not a user file has no Delete file', async () => {
+  fakeApi({ list: { ...fixtures.list, errors: [...fixtures.list.errors, { id: 'acme/broken', message: 'plugin body invalid' }] } });
+  render(<App />);
+  const ghost = (await within(nav()).findByText('plugin body invalid')).closest('[data-id]') as HTMLElement;
+  expect(ghost.getAttribute('data-id')).toBe('acme/broken');
+  expect(within(ghost).queryByRole('button')).toBeNull();
+  const broken = within(nav()).getByText('broken').closest('[data-id]') as HTMLElement;
+  expect(within(broken).getByRole('button', { name: 'Delete file' })).toBeTruthy();
 });

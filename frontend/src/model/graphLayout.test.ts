@@ -1,46 +1,49 @@
-// @ts-nocheck — the assertion bodies are untyped JS on purpose: fixtures and helpers stay loosely shaped.
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { loadFixtures } from '../../../tests/fixtures/fakeConductor.mjs';
-import { layoutGraph } from './graphLayout';
+import { layoutGraph as typedLayoutGraph } from './graphLayout';
+
+// The tests hand layoutGraph partial details and read its edges loosely.
+type Loose = { nodes: any[]; edges: any[]; width: number; height: number };
+const layoutGraph = typedLayoutGraph as (detail: unknown) => Loose;
 
 const { details } = await loadFixtures();
 
 // Points along an SVG path made of M, L, Q and C commands, sampled per segment.
-function samplePath(d) {
-  const tokens = d.match(/[MLQC]|-?[\d.]+/g);
-  const pts = [];
-  let cur = null;
+function samplePath(d: string) {
+  const tokens = d.match(/[MLQC]|-?[\d.]+/g)!;
+  const pts: number[][] = [];
+  let cur: number[] | null = null;
   let i = 0;
   const num = () => Number(tokens[i++]);
-  const lerp = (a, b, t) => a + (b - a) * t;
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   while (i < tokens.length) {
     const cmd = tokens[i++];
-    const n = { M: 1, L: 1, Q: 2, C: 3 }[cmd];
+    const n = { M: 1, L: 1, Q: 2, C: 3 }[cmd as 'M'];
     const ctrl = Array.from({ length: n }, () => [num(), num()]);
     if (cmd === 'M') { cur = ctrl[0]; pts.push(cur); continue; }
-    const seg = [cur, ...ctrl];
+    const seg: number[][] = [cur!, ...ctrl];
     for (let k = 1; k <= 50; k++) {
       let q = seg;
       while (q.length > 1) q = q.slice(1).map((p, j) => [lerp(q[j][0], p[0], k / 50), lerp(q[j][1], p[1], k / 50)]);
       pts.push(q[0]);
     }
-    cur = seg.at(-1);
+    cur = seg.at(-1)!;
   }
   return pts;
 }
-const inside = ([x, y], n) => x > n.x + 1 && x < n.x + n.w - 1 && y > n.y + 1 && y < n.y + n.h - 1;
+const inside = ([x, y]: number[], n: any) => x > n.x + 1 && x < n.x + n.w - 1 && y > n.y + 1 && y < n.y + n.h - 1;
 
-const near = ([x, y], [px, py]) => Math.hypot(x - px, y - py) <= PORT_SLACK;
+const near = ([x, y]: number[], [px, py]: number[]) => Math.hypot(x - px, y - py) <= PORT_SLACK;
 const PORT_SLACK = 3;
 
 // Every box is checked, the edge's own endpoints included: an edge drawn
 // through its own target is a crossing too. Only the samples at the path's
 // start and end ports, which sit on a box border by construction, are exempt.
-function assertNoEdgeCrossesANode(g) {
+function assertNoEdgeCrossesANode(g: Loose) {
   for (const e of g.edges) {
     const pts = samplePath(e.path);
-    const ends = [pts[0], pts.at(-1)];
+    const ends = [pts[0], pts.at(-1)!];
     const body = pts.filter((p) => !ends.some((q) => near(p, q)));
     for (const n of g.nodes) {
       const hit = body.find((p) => inside(p, n));
@@ -51,7 +54,7 @@ function assertNoEdgeCrossesANode(g) {
 
 // Every label is finite, inside the canvas, and clear of the lines its
 // placement rule guarantees (guaranteedClear); no label hides an arrow.
-function assertNoLabelCrossed(g) {
+function assertNoLabelCrossed(g: Loose) {
   for (const e of g.edges.filter((x) => x.label)) {
     assert.ok(e.labelBox, `${e.from}->${e.to} has a label box`);
     for (const k of ['x', 'y', 'w', 'h']) assert.ok(Number.isFinite(e.labelBox[k]), `${e.from}->${e.to} labelBox.${k} is finite (${e.labelBox[k]})`);
@@ -68,31 +71,31 @@ function assertNoLabelCrossed(g) {
   assertNoBackingOnAnArrow(g);
 }
 
-const routed = (e) => / L /.test(e.path);
+const routed = (e: any) => / L /.test(e.path);
 
 // The lines the placement rule keeps clear of a label: every curve joining the
 // label's own pair, plus, for a self-loop or routed label, every routed lane
 // (lanes start right of self-loop labels and of each earlier routed label, and
 // horizontal runs never reach a row centre). Any other line may pass behind a
 // label; its opaque backing keeps the text readable there.
-function guaranteedClear(g, e) {
+function guaranteedClear(g: Loose, e: any) {
   const own = g.edges.filter((x) => x.from === e.from && x.to === e.to);
   const lanes = e.self || routed(e) ? g.edges.filter(routed) : [];
   return [...new Set([...own, ...lanes])];
 }
 
 // graph.js pads the backing 2px each side of labelBox.
-const backing = (b) => ({ x: b.x - 2, y: b.y, w: b.w + 4, h: b.h });
+const backing = (b: any) => ({ x: b.x - 2, y: b.y, w: b.w + 4, h: b.h });
 const ARROW_LEN = 12; // marker-end: 7 marker units × the 1.6 stroke width, rounded up
 
 // No backing hides where a line starts, or its arrowhead (the last ARROW_LEN
 // px before its end), whatever edge the line belongs to.
-function assertNoBackingOnAnArrow(g) {
+function assertNoBackingOnAnArrow(g: Loose) {
   for (const e of g.edges.filter((x) => x.labelBox)) {
     const box = backing(e.labelBox);
     for (const other of g.edges) {
       const pts = samplePath(other.path);
-      const end = pts.at(-1);
+      const end = pts.at(-1)!;
       const tip = [pts[0], ...pts.filter((p) => Math.hypot(p[0] - end[0], p[1] - end[1]) <= ARROW_LEN)];
       const hit = tip.find((p) => inside(p, box));
       assert.equal(hit, undefined, `the label of ${e.from}->${e.to} covers an end or arrowhead of ${other.from}->${other.to} at ${hit}`);
@@ -100,7 +103,7 @@ function assertNoBackingOnAnArrow(g) {
   }
 }
 
-const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const overlap = (a: any, b: any) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 describe('the graph shows the whole definition, for every fixture', () => {
   for (const d of Object.values(details)) {
@@ -148,7 +151,7 @@ test('layers follow the longest path from the entry stages, and cycles terminate
 });
 
 test('no edge is drawn through a box it does not connect: same-layer, layer-skipping and back edges', () => {
-  const stage = (needs = []) => ({ needs });
+  const stage = (needs: object[] = []) => ({ needs });
   const g = layoutGraph({
     entryStages: ['a', 'b', 'c'],
     stages: { a: stage(), b: stage(), c: stage([{ stage: 'a' }]), d: stage(), e: stage(), f: stage() },
@@ -162,7 +165,7 @@ test('no edge is drawn through a box it does not connect: same-layer, layer-skip
     ],
   });
   const layer = Object.fromEntries(g.nodes.map((n) => [n.id, n.layer]));
-  assert.deepEqual(layer, { a: 0, b: 0, c: 0, d: 1, e: 2, f: 1 });
+  assert.deepEqual<Record<string, number>>(layer, { a: 0, b: 0, c: 0, d: 1, e: 2, f: 1 });
   assertNoEdgeCrossesANode(g);
   for (const e of g.edges.filter((x) => layer[x.from] === layer[x.to] && !x.self)) {
     const row = g.nodes.find((n) => n.id === e.from);
@@ -227,7 +230,7 @@ test('a transition and needs between the same pair: the transition label is clea
 });
 
 describe('a label may sit over another pair\'s line: the scoped check holds, and no arrowhead is covered', () => {
-  const s = (needs = []) => ({ needs });
+  const s = (needs: object[] = []) => ({ needs });
   const shapes = {
     'another pair\'s curve crosses a forward label': {
       entryStages: ['a', 'b'],

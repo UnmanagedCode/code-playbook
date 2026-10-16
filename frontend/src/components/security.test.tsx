@@ -26,16 +26,28 @@ afterEach(() => {
   at('/');
 });
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+// The only styled nodes the app renders: Radix's checkbox indicator, with Radix's own fixed style.
+const RADIX_STYLED = { selector: '[data-slot="checkbox-indicator"]', style: 'pointer-events: none;' };
+
 function assertInert(root: HTMLElement) {
-  expect(root.querySelectorAll('img, script, style, iframe, object').length).toBe(0);
+  // No element that loads, runs, links, submits or styles anything was built from content.
+  expect(root.querySelectorAll('script, img, style, a, link, base, iframe, object, embed, form').length).toBe(0);
   for (const el of root.querySelectorAll('*')) {
-    for (const a of el.attributes) {
-      expect(a.name.startsWith('on'), `${el.tagName} ${a.name}`).toBe(false);
-      if (a.name === 'style') expect(a.value, `${el.tagName} style`).not.toMatch(/red/);
+    for (const a of el.attributes) expect(a.name.startsWith('on'), `${el.tagName} ${a.name}`).toBe(false);
+    // Every SVG node belongs to a lucide icon or to our stage graph.
+    if (el.namespaceURI === SVG_NS) {
+      const svg = el.closest('svg')!;
+      expect(svg.classList.contains('lucide') || /^stage graph of /.test(svg.getAttribute('aria-label') ?? ''), `${el.tagName} outside an icon or the graph`).toBe(true);
     }
-    if (el.hasAttribute('style')) expect(el.closest('[data-slot]') ?? el.getAttribute('aria-hidden'), `${el.tagName} carries a style attribute`).toBeTruthy();
+    // A style attribute only on a Radix-owned node, with Radix's value, never the payload.
+    const style = el.getAttribute('style');
+    if (style !== null) {
+      expect(el.matches(RADIX_STYLED.selector), `${el.tagName} carries a style attribute`).toBe(true);
+      expect(style).toBe(RADIX_STYLED.style);
+    }
   }
-  expect((window as unknown as { __xss?: number }).__xss).toBeUndefined();
+  // window.__xss is not checked here: happy-dom never fires onerror. golden-path.mjs's hostile pass checks it in Chromium.
 }
 
 // Invariant: the detail and the list render every hostile field as its literal text, with no element or handler made from it.

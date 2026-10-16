@@ -37,7 +37,7 @@ export function NeedsRow({ ed, stage, need, i }: { ed: EditorApi; stage: FormSta
           </NativeSelect>
         )}
       </Field>
-      <Button type="button" variant="ghost" size="icon-sm" aria-label="Remove need" className="ml-auto"
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="Remove need" title="remove this need" className="ml-auto"
         onClick={() => { ed.change((f) => removeNeed(f, stage.key, i)); ed.focusNext(`need:${stage.key}`); }}>
         <XIcon />
       </Button>

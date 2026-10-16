@@ -24,13 +24,22 @@ test('index.css imports and dark variant', () => {
   assert.match(indexCss, /@custom-variant dark \(&:is\(\.dark \*\)\);/);
 });
 
+// The recipe's @theme inline block, committed so the check below always runs.
+const FIXTURE = strip(readFileSync(new URL('./fixtures/recipe-theme-inline.css', import.meta.url), 'utf8'));
+const norm = (s) => s.replace(/\s+/g, ' ').trim();
+
 // Invariant: the @theme inline block is cc's recipe block, so the Tailwind utilities map to cc's token names.
+test('@theme inline equals the recipe\'s block (committed copy)', () => {
+  assert.ok(themeBlock(FIXTURE), 'the fixture holds a @theme inline block');
+  assert.equal(norm(themeBlock(indexCss)), norm(themeBlock(FIXTURE)));
+});
+
+// Invariant: the committed copy still equals the recipe, when a code-conductor checkout is reachable.
 const RECIPE = path.join(process.env.CC_PROJECTS_ROOT ?? '', 'code-conductor', 'docs', 'plugin-ui.md');
-test('@theme inline equals the recipe\'s block', { skip: (!process.env.CC_PROJECTS_ROOT || !existsSync(RECIPE)) && 'set CC_PROJECTS_ROOT to a root holding a code-conductor checkout' }, () => {
+test('the committed @theme inline copy equals the recipe\'s current block', { skip: (!process.env.CC_PROJECTS_ROOT || !existsSync(RECIPE)) && 'set CC_PROJECTS_ROOT to a root holding a code-conductor checkout' }, () => {
   const doc = readFileSync(RECIPE, 'utf8');
   const recipeCss = doc.slice(doc.indexOf('**`frontend/src/index.css`:**')).match(/```css\n([\s\S]*?)```/)[1];
-  const norm = (s) => s.replace(/\s+/g, ' ').trim();
-  assert.equal(norm(themeBlock(indexCss)), norm(themeBlock(strip(recipeCss))));
+  assert.equal(norm(themeBlock(FIXTURE)), norm(themeBlock(strip(recipeCss))));
 });
 
 // Invariant: the fallback is one @layer base block (so cc's unlayered sheet wins embedded) declaring :root and .dark.
@@ -59,7 +68,8 @@ test('every @theme inline token is declared by the fallback, colours in both mod
 const own = sourceFiles().filter(([n]) => n.startsWith('src/') && !n.startsWith('src/components/ui/') && n !== 'src/cc-theme-fallback.css');
 
 // Invariant: the plugin's own code (the stage graph's SVG included) uses colours only through the theme tokens.
-test('own code has no literal colours', () => {
+// components/ui/ is excluded: cc's primitives, copied unchanged, carry a few literals of their own (bg-black/40, text-white).
+test('own code (outside the copied components/ui/) has no literal colours', () => {
   const PALETTE = 'red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone|black|white';
   const literal = new RegExp(`#[0-9a-fA-F]{3,8}\\b|\\brgba?\\(|\\bhsla?\\(|\\boklch\\(|\\b(?:bg|text|border|ring|fill|stroke|outline|decoration|shadow|from|via|to|divide|accent|caret)-(?:${PALETTE})\\b`);
   assert.ok(own.length > 10);

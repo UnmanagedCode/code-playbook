@@ -1,7 +1,7 @@
 // Pins the wire format to this plugin's backend (the saved bytes depend on it) and how failures
 // become ApiError.
 import { afterEach, expect, test, vi } from 'vitest';
-import { ApiError, playbooksApi } from './api';
+import { ApiError, call, playbooksApi } from './api';
 import type { Definition } from '@/model/types';
 
 const def: Definition = { id: 'mine-2', name: 'n', description: 'd', entryStages: [], stages: {}, transitions: [] };
@@ -57,4 +57,24 @@ test('a network failure is status 0 with the unreachable message', async () => {
   stub(() => { throw new TypeError('Failed to fetch'); });
   const e = await playbooksApi.list().catch((x) => x);
   expect([e.status, e.message]).toEqual([0, 'the code-playbook backend is unreachable: Failed to fetch']);
+});
+
+// Invariant: a root-relative path is refused before any request: it would reach cc's API, not this plugin's.
+test('a /-led path throws without a request', async () => {
+  const fn = stub(ok());
+  await expect(call('GET', '/api/playbooks')).rejects.toThrow(/root-relative/);
+  expect(fn).not.toHaveBeenCalled();
+});
+
+// Invariant: an id with an empty, `.` or `..` segment never produces a request (it would resolve outside api/playbooks/).
+test('traversal ids are refused before any request, on read, save and delete', async () => {
+  const fn = stub(ok());
+  for (const id of ['..', '.', '', '../../api/health', 'a/../b', 'acme/', 'a//b']) {
+    for (const p of [playbooksApi.detail(id), playbooksApi.save(id, def), playbooksApi.remove(id)]) {
+      const e = await p.catch((x) => x);
+      expect(e).toBeInstanceOf(ApiError);
+      expect([e.status, e.code]).toEqual([400, 'PLAYBOOK_ID_INVALID']);
+    }
+  }
+  expect(fn).not.toHaveBeenCalled();
 });

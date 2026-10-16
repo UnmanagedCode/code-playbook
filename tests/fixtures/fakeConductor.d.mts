@@ -2,7 +2,7 @@
 import type { LocatedError, PlaybookDetail, PlaybookList } from '../../frontend/src/model/types';
 
 export function loadFixtures(): Promise<{ list: PlaybookList; details: Record<string, PlaybookDetail> }>;
-export function cannedValidate(draft: unknown): { ok: true } | { ok: false; errors: LocatedError[] };
+export function cannedValidate(draft: unknown): { ok: boolean; errors?: LocatedError[] };
 
 export interface FakeCall { method: string; path: string; body: unknown; contentType: string | undefined }
 export function startFakeConductor(opts?: {

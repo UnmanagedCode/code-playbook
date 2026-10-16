@@ -152,9 +152,20 @@ try {
     assert.equal(await page.getByRole('button', { name: 'Duplicate', exact: true }).count(), 1);
     await shot(page, '03-plugin-readonly');
 
-    // 3b. mine: a same-row needs edge (draft → review) bowing above its row
+    // 3b. mine: the same-row needs edge (draft → review, both entry stages) bows above its row: its control
+    // points sit above the boxes' top edge, so the curve never enters the row.
     await entry(page, 'mine').click();
-    await page.getByRole('group', { name: 'stage graph of mine' }).waitFor();
+    const mineGraph = page.getByRole('group', { name: 'stage graph of mine' });
+    await mineGraph.waitFor();
+    const bow = await mineGraph.evaluate((svg) => {
+      const edge = [...svg.querySelectorAll('[data-edge="needs"] path')].find((p) => p.querySelector('title')?.textContent === 'review needs draft');
+      const top = Number(svg.querySelector('[data-stage="draft"] rect').getAttribute('y'));
+      const nums = edge?.getAttribute('d').match(/-?[\d.]+/g)?.map(Number) ?? [];
+      return { d: edge?.getAttribute('d'), top, starts: nums[1], controls: [nums[3], nums[5]], ends: nums[7] };
+    });
+    assert.match(bow.d, /^M [\d.]+ [\d.]+ C /, 'a cubic same-row edge');
+    assert.deepEqual([bow.starts, bow.ends], [bow.top, bow.top], 'leaves and enters at the top edge');
+    for (const y of bow.controls) assert.ok(y < bow.top, `control point y ${y} above the row top ${bow.top}`);
     await shot(page, '03b-mine-detail', true);
 
     // 4. duplicate relay → id dialog notices

@@ -71,8 +71,8 @@ function IdForm({ request, takenIds, onDone }: { request: IdRequest; takenIds: T
                 <AlertDescription><p>{n.block}</p></AlertDescription>
               </Alert>
             )}
-            {n.warn.map((w) => (
-              <Alert key={w} variant="warning">
+            {n.warn.map((w, i) => (
+              <Alert key={i} variant="warning">
                 <TriangleAlertIcon />
                 <AlertDescription><p>{w}</p></AlertDescription>
               </Alert>

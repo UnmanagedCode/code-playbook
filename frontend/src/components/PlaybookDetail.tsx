@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { liveText, readOnlyNote } from '@/model/listModel';
 import type { PlaybookDetail as Detail, PlaybookList } from '@/model/types';
 import { BackButton } from './BackButton';
+import { ErrorBoundary } from './ErrorBoundary';
 import { StageGraph } from './StageGraph';
 import { StagePanel } from './StagePanel';
 import { TransitionsTable } from './TransitionsTable';
@@ -69,7 +70,9 @@ export function PlaybookDetail({ detail, list, flash, onBack, onEdit, onDuplicat
       </div>
       <Card className="gap-2 py-4">
         <CardContent className="overflow-x-auto px-4">
-          <StageGraph detail={detail} onNode={goToStage} />
+          <ErrorBoundary resetKey={detail} fallback={(e) => <p className="text-sm text-destructive">{`The stage graph cannot be drawn: ${e.message}`}</p>}>
+            <StageGraph detail={detail} onNode={goToStage} />
+          </ErrorBoundary>
         </CardContent>
         <CardContent className="px-4">
           <p className="text-xs text-muted-foreground">solid: transition, labelled with its driving tool · dashed: needs (anchor → stage) · bold border: entry stage</p>

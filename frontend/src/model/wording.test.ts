@@ -1,4 +1,3 @@
-// @ts-nocheck — the assertion bodies are untyped JS on purpose: fixtures and helpers stay loosely shaped.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { driftWarning, renameWarning, deleteConfirm } from './wording';

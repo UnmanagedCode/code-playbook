@@ -1,4 +1,3 @@
-// @ts-nocheck — the assertion bodies are untyped JS on purpose: fixtures and helpers stay loosely shaped.
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { loadFixtures, cannedValidate } from '../../../tests/fixtures/fakeConductor.mjs';
@@ -6,13 +5,14 @@ import {
   formFromDetail, definitionFromForm, renameStage, removeStage, duplicateForm, newPlaybookForm,
   toggleEntry, idNotices, placeErrors,
 } from './formModel';
+import type { Definition, Form, PlaybookDetail } from './types';
 
 const { list, details } = await loadFixtures();
 
 // The contract's detail → definition mapping, written independently of
 // formModel: drop spawnable and the response-only fields, turn via into on
 // (dropped for send_prompt).
-function expectedDefinition(d) {
+function expectedDefinition(d: PlaybookDetail) {
   const { source, editable, liveWorkers, stages, transitions, ...rest } = d;
   return {
     ...rest,
@@ -23,7 +23,7 @@ function expectedDefinition(d) {
 
 // What cc would answer for a definition it accepted: defaults are already
 // explicit in everything the form emits, so only the response fields are added.
-function detailOf(def, extra = {}) {
+function detailOf(def: Definition, extra = {}) {
   return {
     ...def, source: 'user', editable: true, liveWorkers: 0, ...extra,
     stages: Object.fromEntries(Object.entries(def.stages).map(([n, s]) => [n, { ...s, spawnable: s.tools.spawn_instance !== undefined && s.tools.spawn_instance !== 'deny' }])),
@@ -31,8 +31,8 @@ function detailOf(def, extra = {}) {
   };
 }
 
-const stageByName = (form, name) => form.stages.find((s) => s.name === name);
-const def = (form) => {
+const stageByName = (form: Form, name: string) => form.stages.find((s) => s.name === name)!;
+const def = (form: Form) => {
   const r = definitionFromForm(form);
   assert.ok(r.definition, `expected a definition, got ${JSON.stringify(r.localErrors)}`);
   return r.definition;
@@ -54,10 +54,10 @@ test('via send_prompt emits no `on`; any other via emits it', () => {
 test('descriptions: absent → "" in the form; "" → key absent; present → verbatim', () => {
   const form = formFromDetail(details.mine);
   assert.equal(stageByName(form, 'review').description, '');
-  assert.equal(form.transitions.find((t) => t.from === 'build').description, '');
+  assert.equal(form.transitions.find((t) => t.from === 'build')!.description, '');
   const out = def(form);
   assert.ok(!('description' in out.stages.review));
-  assert.ok(!('description' in out.transitions.find((t) => t.from === 'build')));
+  assert.ok(!('description' in out.transitions.find((t) => t.from === 'build')!));
   assert.equal(out.stages.draft.description, details.mine.stages.draft.description);
   stageByName(form, 'draft').description = '';
   assert.ok(!('description' in def(form).stages.draft));
@@ -83,7 +83,7 @@ test('entryStages keep their order; toggling an entry off then on appends it', (
 test('pin values round-trip by type; invalid pin JSON is a local error located to stage and tool', () => {
   const form = formFromDetail(details.mine);
   const build = stageByName(form, 'build');
-  const spawn = build.tools.find((r) => r.tool === 'spawn_instance');
+  const spawn = build.tools.find((r) => r.tool === 'spawn_instance')!;
   spawn.pin = [{ arg: 'name', json: '"planner"' }, { arg: 'debug', json: 'true' }, { arg: 'effort', json: '3' }, { arg: 'baseWorktree', json: 'null' }];
   assert.deepEqual(def(form).stages.build.tools.spawn_instance, { pin: { name: 'planner', debug: true, effort: 3, baseWorktree: null } });
 
@@ -97,7 +97,7 @@ test('pin values round-trip by type; invalid pin JSON is a local error located t
 });
 
 test('renameStage cascades by exact name and leaves a prefix-sharing stage alone', () => {
-  const src = {
+  const src: PlaybookDetail = {
     id: 'r', name: 'R', description: 'd', entryStages: ['plan', 'plan-b'],
     stages: {
       plan: { needs: [], workers: 'one', tools: { spawn_instance: 'allow' }, spawnable: true },
@@ -168,7 +168,7 @@ test('the New playbook seed: one spawnable entry stage `start`; fails the fake v
     stages: { start: { needs: [], workers: 'one', tools: { spawn_instance: 'allow' } } },
     transitions: [],
   });
-  assert.deepEqual(cannedValidate(out).errors.map((e) => e.message),
+  assert.deepEqual(cannedValidate(out).errors!.map((e) => e.message),
     ['name is required and must be a non-empty string', 'description is required and must be a non-empty string']);
   const named = def({ ...form, name: 'Fresh', description: 'A fresh playbook.' });
   assert.deepEqual(cannedValidate(named), { ok: true });

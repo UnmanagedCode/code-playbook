@@ -17,6 +17,7 @@ export function createServer({ conductorUrl, projectsRoot, distDir = DEFAULT_DIS
   const authoring = createAuthoring({ conductor, store: createPlaybookStore({ projectsRoot }) });
 
   const app = express();
+  app.disable('x-powered-by');
   app.use(securityHeaders);
   app.use('/api', buildRoutes({ conductor, authoring }));
   app.use(serveUi(distDir));

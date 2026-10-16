@@ -1,4 +1,4 @@
-// Sent on every response: pages, assets, API answers, the 404, the 503 and
+// Sent on every response express produces: pages, assets, API answers, the 404, the 503 and
 // errors. The page runs in an unsandboxed iframe on cc's origin, so the CSP
 // backs up text-only rendering: no inline script, nothing from elsewhere.
 // 'unsafe-inline' styles: Radix Dialog's scroll lock injects a <style>; the

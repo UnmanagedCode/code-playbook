@@ -6,10 +6,11 @@
 
 | File | Responsibility |
 |---|---|
-| `server.js` | wiring only, in this order: `securityHeaders` → `/api` routes → `serveUi(distDir)` → JSON 404 → `jsonErrorHandler`. Logs the missing entry file at startup (`checkBuilt`), listens on `$PORT` |
-| `src/securityHeaders.js` | `CSP` and the middleware setting it and `X-Content-Type-Options: nosniff` on every response |
-| `src/static.js` | `serveUi(distDir)`: `/` and `ASSET_RE` paths from `frontend/dist` (`DEFAULT_DIST`), the unbuilt 503; `checkBuilt(distDir, log)` |
-| `src/conductorClient.js` | the only module that talks to cc. `forward` answers `{status, body}`; `list`/`validate` throw on anything but 200 JSON. `playbookPath` segment-encodes an id |
+| `server.js` | wiring only, with `X-Powered-By` disabled, in this order: `securityHeaders` → `/api` routes → `serveUi(distDir)` → JSON 404 → `jsonErrorHandler`. Logs the missing entry file at startup (`checkBuilt`), listens on `$PORT` |
+| `src/securityHeaders.js` | `CSP` and the middleware setting it and `X-Content-Type-Options: nosniff` on every response express produces (Node's parser-level 400/431 refusals bypass it: [protocol.md](protocol.md#response-headers)) |
+| `src/static.js` | `serveUi(distDir)`: `/` and `ASSET_RE` paths from `frontend/dist` (`DEFAULT_DIST`), only when the file's real path lies inside the real dist dir; the unbuilt 503; `checkBuilt(distDir, log)` |
+| `src/playbookId.js` | `playbookIdPath`: an id's segment-encoded path below `/api/playbooks/`, or null for an empty, `.` or `..` segment. Shared by the cc client and the frontend's `api.ts` |
+| `src/conductorClient.js` | the only module that talks to cc. `forward` answers `{status, body}`; `list`/`validate` throw on anything but 200 JSON. `playbookPath` is cc's path for an id (via `playbookIdPath`) |
 | `src/playbookStore.js` | overlay dir I/O: `assertOverlayId` (path safety), atomic `write`, `remove` |
 | `src/authoring.js` | save / delete sequencing: guard → reserved check → cc validate → store |
 | `src/routes.js` | HTTP layer; thrown `httpError`s become `{error, code, …}` |
@@ -23,7 +24,7 @@
 | `src/main.tsx` | mounts `App` in `StrictMode` |
 | `src/App.tsx` | routes (query string), list loading, detail fetch per navigation with a stale-response guard, the in-memory draft, the flash notice, the id and delete dialogs |
 | `src/lib/route.ts` | `parseRoute`, `navigate` (`pushState`, never a hash), `useNavigation` (`location.search` plus a navigation count) |
-| `src/lib/api.ts` | `playbooksApi` over relative `api/…` paths; failures are `ApiError(status, message, code?, body?)`, status 0 for an unreachable backend |
+| `src/lib/api.ts` | `playbooksApi` over relative `api/…` paths; failures are `ApiError(status, message, code?, body?)`, status 0 for an unreachable backend. An id `playbookIdPath` refuses is a 400 `PLAYBOOK_ID_INVALID` before any request |
 | `src/lib/utils.ts`, `modalFocus.ts`, `textEntry.ts` | copied from cc (`cn()`, modal focus return) |
 | `src/components/ui/*` | copied from cc: button, badge, alert, card, dialog, input, textarea, label, checkbox, native-select, skeleton |
 | `src/components/PlaybookList.tsx` | grouped list, New playbook, load errors |
@@ -31,6 +32,7 @@
 | `src/components/StageGraph.tsx` | SVG render of a `layoutGraph` result; nodes are focusable buttons |
 | `src/components/IdDialog.tsx`, `ConfirmDialog.tsx` | the id prompt (Duplicate, New playbook) and the destructive confirm (Delete, Delete file, Remove stage) |
 | `src/components/MessagePanel.tsx`, `BackButton.tsx`, `AppHeader.tsx` | messages, the phone-only Back, the header |
+| `src/components/ErrorBoundary.tsx` | a render failure shows a fallback instead of unmounting the page; reset by `resetKey`. Wraps the main pane (reset per navigation) and the stage graph (reset per detail) |
 | `src/components/editor/useEditor.ts` | the editor's state machine: debounced validate, stale verdicts dropped, target lookup for the drift warning, save, stage-name drafts |
 | `src/components/editor/Editor.tsx`, `StageCard.tsx`, `NeedsRow.tsx`, `ToolRow.tsx`, `TransitionRow.tsx`, `Field.tsx`, `ErrorList.tsx` | the editor's controls; every edit goes through `formEdits` |
 | `src/model/formModel.ts` | **pure** form state and transformations |
@@ -101,10 +103,10 @@ Nothing is written without cc's `ok:true` for that exact body.
 
 | File | Covers |
 |---|---|
-| `serving.test.mjs` | over a fixture dist: `/`, `/index.html`, assets served with type and `no-store`; traversal, sources, maps and decoy files 404; host URLs and unknown paths 404 JSON; unbuilt 503 with the API up; `checkBuilt`; the CSP and `nosniff` on 200, 404, 503, 400s, 422, 502, 503 and 500; the source `index.html`'s head order and relative refs |
+| `serving.test.mjs` | over a fixture dist: `/`, `/index.html`, assets served with type and `no-store`; traversal, sources, maps and decoy files 404; a symlink escaping the dist 404s, one inside it and a symlinked dist are served; host URLs and unknown paths 404 JSON; unbuilt 503 with the API up; `checkBuilt`; the documented CSP literal, `nosniff` and no `X-Powered-By` on 200 (page and asset), 400 `BODY_INVALID`, 400 `PATH_INVALID`, 404 `NOT_FOUND`, 422 `PLAYBOOK_INVALID`, 500 `INTERNAL`, 502 `CONDUCTOR_UNREACHABLE`, 503 unbuilt and 503 `CONDUCTOR_URL_UNSET`; the source `index.html`'s head order and relative refs |
 | `dist.test.mjs` | the real build (fails with "run npm install" when missing): files match `ASSET_RE`, no `.map`, no inline script/style, relative refs, head order, no absolute or `data:` URL in the CSS, no `"/api/` in the JS, served with the CSP |
-| `frontend-theme.test.mjs` | `index.css` imports and dark variant; its `@theme inline` block equals the recipe's (skipped without `$CC_PROJECTS_ROOT/code-conductor/docs/plugin-ui.md`); the fallback is `@layer base` and declares every mapped token; no literal colour in own code; only `theme-init.js` touches the theme |
-| `frontend-security.test.mjs` | no raw-HTML or eval API; in own code no `style=`, `href=`, `<a`, `location.hash`, `window.parent`, storage; no root-relative request |
+| `frontend-theme.test.mjs` | `index.css` imports and dark variant; its `@theme inline` block equals the committed recipe copy `tests/fixtures/recipe-theme-inline.css`, and that copy equals the recipe's current block (the drift check is skipped without `$CC_PROJECTS_ROOT/code-conductor/docs/plugin-ui.md`); the fallback is `@layer base` and declares every mapped token; no literal colour in own code (cc's copied `components/ui/` excluded); only `theme-init.js` touches the theme |
+| `frontend-security.test.mjs` | no raw-HTML or eval API in any file under `frontend/` but `dist/` (`index.html`, `public/`, `src/` with tests, the configs); in own code (cc's copied `components/ui/` excluded) no `style=`, `href=`, `<a`, `location.hash`, `window.parent`, storage, and no root-relative `fetch` or `call` (with a self-check that the pattern matches every request form) |
 | `roundTrip.test.mjs` | the server half of the round-trip: each golden body PUT through the backend is written byte for byte as the golden file |
 | `authoring.test.mjs` | save target, the draft sent to cc as JSON, validate-before-write, unreachable cc, id mismatch, the path guard, cc judging path-safe ids, reserved ids, atomic write, rename ordering, delete scope, `PROJECTS_ROOT` unset |
 | `routes.test.mjs` | verbatim forwarding (incl. slash ids and cc 404s), dot/empty-segment detail ids refused with no request to cc, the cc client's own path guard with a JSON Content-Type to cc, `BODY_NOT_JSON`, `PATH_INVALID` without a stack, the generic 500, `CONDUCTOR_URL` unset or malformed, unreachable cc, bad JSON |
@@ -123,18 +125,20 @@ Nothing is written without cc's `ok:true` for that exact body.
 | `model/editorModel.test.ts` | every status text and tone, the notices, the option lists |
 | `model/listModel.test.ts` | group order, the empty User group, load-error groups, list error text, viewer text |
 | `model/realConductor.test.ts` | skipped unless `RUN_REAL_CC=1` and `CONDUCTOR_URL`: live contract shape, every live playbook round-tripped through cc's real validator, the New playbook seed |
-| `lib/route.test.ts`, `lib/api.test.ts`, `themeInit.test.ts` | routes and no hash; the exact wire format and `ApiError`s; standalone theme follows the OS, embedded does nothing |
-| `components/App.test.tsx` | list skeleton then groups, list 404, selection, read-only edit route, a reloaded draft URL, Delete (confirm, DELETE, flash) and its failure, Delete file, stale detail dropped |
+| `lib/route.test.ts`, `lib/api.test.ts`, `themeInit.test.ts` | routes, no hash, one history entry per navigation; the exact wire format, `ApiError`s, a `/`-led path and every traversal id refused before any request; standalone theme follows the OS, embedded does nothing |
+| `components/App.test.tsx` | list skeleton then groups, list 404, selection, read-only edit route, a reloaded draft URL, Delete (confirm, DELETE, flash) and its failure, Delete file only for a user file, stale detail dropped, a traversal id refused without a request, a throwing graph or detail contained by its error boundary, a save opening the saved detail with the flash, the flash cleared by the next navigation, `release-copy` for `acme/release` |
 | `components/IdDialog.test.tsx` | notices, the Continue gate, Enter resolves the trimmed id, Escape/Cancel resolve null and return focus, initial id selected |
 | `components/StageGraph.test.tsx` | nodes and edges, click/Enter/Space, no content-derived attributes |
-| `components/security.test.tsx` | hostile content renders as text in the detail, list and editor |
-| `components/editor/Editor.test.tsx` | (fake timers) debounce, stale verdicts, the Save gate, 422 and 500 on save, `?from=`, drift and rename warnings, the remove-stage confirm, Enter commits a rename without saving |
+| `components/security.test.tsx` | hostile content renders as text in the detail, list and editor: no loading, linking, submitting or styling element, no handler attribute, SVG only from icons and the graph, `style` only on Radix's checkbox indicator with Radix's value |
+| `components/PlaybookDetail.test.tsx` | from the fixtures: entry and spawnable badges per stage, the read-only note and actions per source, the needs list, tools rows (or the single empty-tools row) and transitions rows |
+| `components/editor/Editor.test.tsx` | (fake timers) debounce, stale verdicts, the Save gate, 422 and 500 on save, an edit clearing a save failure, `?from=`, drift and rename warnings, the remove-stage confirm, Enter commits a rename without saving |
 | `components/editor/roundTrip.test.tsx` | the UI half of the round-trip: each edit script, played by accessible name, PUTs exactly the golden body |
 
 Fixtures:
 - `tests/fixtures/cc-api/`: the list (`playbooks.json`) and one detail per listed playbook (a plugin id's `/` is `__` in the filename). `mine.json` uses every field the validator admits.
 - `tests/fixtures/fakeConductor.mjs` (types: `fakeConductor.d.mts`): `startFakeConductor({validate, handle})` → `{url, calls, down, close}`; `calls` records each request's method, path, body and Content-Type. Like cc, validate refuses a non-JSON Content-Type with 400 `BODY_NOT_JSON`. `cannedValidate` mirrors cc's required-name and required-description rule (with cc's message text) and otherwise refuses only a stage named `bad`.
 - `tests/fixtures/edit-scripts.json`: the edit scripts (`duplicate-mine` uses every editor gesture; `rename-mine` saves with `?from=`; `new-fresh`), as op steps naming stages by their current name. `tests/fixtures/saved/<saved id>.json`: the golden file each script must save, byte for byte.
+- `tests/fixtures/recipe-theme-inline.css`: a copy of the recipe's `@theme inline` block, so the theme guard runs without a cc checkout.
 - `tests/helpers.mjs`: `bootWithFake(t, …)` (server + fake + tmp `PROJECTS_ROOT`, torn down via `t.after`) and `rawRequest` (sends a path unnormalised, so `..` and `%2F` reach the server).
 - `tests/_frontendFiles.mjs`: `sourceFiles({tests})` and `headTags(html)` for the text guards.
 - `frontend/src/test/fakeApi.ts`: a `fetch` stub serving the plugin's API from the same fixtures, recording each call.
@@ -144,7 +148,7 @@ Fixtures:
 `npm run harness` builds, then runs `harness/playwright/golden-path.mjs`:
 - `codePlaywright.mjs` resolves the shared `code-playwright` `browser.mjs` from `$CC_PROJECTS_ROOT/.plugins/`;
 - `boot.mjs` boots `server.js` with a sandboxed `PROJECTS_ROOT` via `bootServer`;
-- the golden path starts the fake cc in-process and asserts as it goes: the grouped list, the relay graph, a read-only plugin playbook, the id-dialog notices, a canned error on a stage card, Save gating and refused renames, a save, the drift and rename warnings, New playbook blank then named; the `duplicate-mine` edit script saved byte-identical to its golden file; an OS light/dark flip that changes `<html>.dark` and the graph's and page's computed colours; keyboard paths (list, graph node → stage heading, dialog focus trap and return, editor Tab order); a list 500, an unreachable cc and the loading skeleton; hostile content; no console error beyond the host URLs' standalone 404s and no CSP violation; and the list, a detail and the editor at 390×844 with no horizontal overflow;
+- the golden path starts the fake cc in-process and asserts as it goes: the grouped list, the relay graph, a read-only plugin playbook, mine's same-row needs edge bowing above its row (control points above the boxes' top edge), the id-dialog notices, a canned error on a stage card, Save gating and refused renames, a save, the drift and rename warnings, New playbook blank then named; the `duplicate-mine` edit script saved byte-identical to its golden file; an OS light/dark flip that changes `<html>.dark` and the graph's and page's computed colours; keyboard paths (list, graph node → stage heading, dialog focus trap and return, editor Tab order); a list 500, an unreachable cc and the loading skeleton; hostile content; no console error beyond the host URLs' standalone 404s and no CSP violation; and the list, a detail and the editor at 390×844 with no horizontal overflow;
 - screenshots go to `harness/playwright/screenshots/` (git-ignored);
 - with `CONDUCTOR_URL` set, it uses that live cc and captures only the list and relay's detail.
 

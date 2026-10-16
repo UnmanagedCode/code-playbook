@@ -56,9 +56,11 @@ Answer: `{ok:true, id}`.
 
 ## Response headers
 
-Every response — pages, assets, API answers, the 404, the unbuilt 503 and every error — carries:
+Every response express produces — pages, assets, API answers, the 404, the unbuilt 503 and every error — carries the headers below, and none carries `X-Powered-By` (disabled in `server.js`).
 
-| Header | Value |
+Node's own HTTP parser answers some malformed requests before express sees them, and those answers carry neither header: a malformed request line gets `400 Bad Request`, an oversized header block `431 Request Header Fields Too Large`.
+
+| Header (express responses) | Value |
 |---|---|
 | `Content-Security-Policy` | `CSP` in `src/securityHeaders.js` |
 | `X-Content-Type-Options` | `nosniff` |
@@ -82,7 +84,7 @@ Served by `serveUi` (`src/static.js`) from `frontend/dist/`, for GET and HEAD, w
 | Path | Answer |
 |---|---|
 | `/`, `/index.html` (any query) | `index.html`; while it is missing, `503 text/plain; charset=utf-8` `UI not built — run npm install` |
-| a path matching `ASSET_RE` | that file; missing → the 404 |
+| a path matching `ASSET_RE` | that file, when its real path (symlinks resolved) lies inside the real dist dir; otherwise, or missing → the 404 |
 | anything else, including `/pluginBridge.js`, `/pluginTheme.css`, `.map` files and nested paths | `404 {"error":"not found","code":"NOT_FOUND"}` |
 
 There is no SPA fallback: routes live in the query string, and cc's host URLs 404 standalone.

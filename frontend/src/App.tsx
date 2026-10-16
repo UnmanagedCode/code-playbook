@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppHeader } from '@/components/AppHeader';
 import { ConfirmDialog, type ConfirmRequest } from '@/components/ConfirmDialog';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Editor } from '@/components/editor/Editor';
 import { IdDialog, type IdRequest } from '@/components/IdDialog';
 import { MessagePanel } from '@/components/MessagePanel';
@@ -188,7 +189,14 @@ export function App() {
             onDeleteFile={(id) => askDelete(id, deleteFileConfirm(id))}
           />
         </nav>
-        <div className="min-w-0">{main}</div>
+        <div className="min-w-0">
+          <ErrorBoundary
+            resetKey={seq}
+            fallback={(e) => <MessagePanel title={route.selectedId ? `Cannot show ${route.selectedId}` : 'Cannot show this screen'} text={e.message} onBack={home} />}
+          >
+            {main}
+          </ErrorBoundary>
+        </div>
       </main>
       {list && <IdDialog open={idDialog.open} request={idDialog.request} n={idDialog.n} takenIds={list.takenIds} onDone={idDone} />}
       <ConfirmDialog open={confirm.open} request={confirm.request} n={confirm.n} onCancel={() => setConfirm((c) => ({ ...c, open: false }))} />

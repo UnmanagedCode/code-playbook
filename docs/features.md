@@ -16,6 +16,8 @@ The **Code Playbook** tab (cc nav label from `conductor.plugin.json`). Also runs
 
 ## Detail (`?playbook=<id>`)
 
+- An id with an empty, `.` or `..` segment (e.g. `?playbook=../x`) shows **Cannot open `<id>`** without any request.
+- A detail the viewer cannot draw shows **Cannot show `<id>`** with the error in place of the detail; the list keeps working. A graph that cannot be laid out (e.g. an entry stage cc never declared) is replaced by "The stage graph cannot be drawn: …", and the rest of the detail renders.
 - Name, id, source badge, live-worker count (`liveWorkers`; `null` shows as `unknown`), description and entry-stage chips.
 - **Graph** (`frontend/src/model/graphLayout.ts`, drawn by `frontend/src/components/StageGraph.tsx` in theme colours):
   - one box per stage; an entry stage has a bold success-coloured border; a spawnable stage's name is info-coloured;

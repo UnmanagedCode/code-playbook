@@ -234,3 +234,16 @@ test('Enter in a stage-name input commits the rename without saving', async () =
   expect(calls.some((c) => c.method === 'PUT')).toBe(false);
   expect(onSaved).not.toHaveBeenCalled();
 });
+
+// Invariant: a save failure describes the revision that failed; the next edit clears it.
+test('an edit clears a previous save failure', async () => {
+  fakeApi({ handle: (m) => (m === 'PUT' ? json({ error: 'could not write the file', code: 'PLAYBOOK_WRITE_FAILED' }, 500) : undefined) });
+  renderEditor();
+  await settle();
+  const u = user();
+  await u.click(saveButton());
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(screen.getByText('could not write the file')).toBeTruthy();
+  await u.type(screen.getByRole('textbox', { name: 'Name' }), '!');
+  expect(screen.queryByText('could not write the file')).toBeNull();
+});

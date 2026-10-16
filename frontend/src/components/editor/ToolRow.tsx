@@ -35,7 +35,7 @@ export function ToolRow({ ed, stage, row }: { ed: EditorApi; stage: FormStage; r
           )}
         </Field>
         {!isSpawn && (
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove tool ${r.tool}`}
+          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove tool ${r.tool}`} title={`remove ${r.tool}`}
             onClick={() => { ed.change((f) => setToolPolicy(f, k, r.tool, 'none', pinArgs)); ed.focusNext(`addtool:${k}`); }}>
             <XIcon />
           </Button>

@@ -7,12 +7,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { createServer } from '../server.js';
-import { CSP } from '../src/securityHeaders.js';
 import { checkBuilt } from '../src/static.js';
 import { startFakeConductor } from './fixtures/fakeConductor.mjs';
 import { rawRequest, sampleDefinition } from './helpers.mjs';
 import { FRONTEND, headTags } from './_frontendFiles.mjs';
 
+// The documented policy, written out: a change to src/securityHeaders.js must change this test too.
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
 const JS = './assets/index-Ab_9-x.js';
 const CSS = './assets/index-Cd1.css';
 const INDEX = `<!doctype html><html><head><script src="/pluginBridge.js"></script><link rel="stylesheet" href="/pluginTheme.css"><script src="theme-init.js"></script><script type="module" src="${JS}"></script><link rel="stylesheet" href="${CSS}"></head><body><div id="root"></div></body></html>`;
@@ -53,6 +54,7 @@ async function boot(t, { distDir, conductorUrl, projectsRoot } = {}) {
 const assertHeaders = (r, label) => {
   assert.equal(r.headers['content-security-policy'], CSP, `${label}: CSP`);
   assert.equal(r.headers['x-content-type-options'], 'nosniff', `${label}: nosniff`);
+  assert.equal(r.headers['x-powered-by'], undefined, `${label}: no X-Powered-By`);
 };
 
 // Invariant: `/`, `/index.html`, theme-init.js and assets are served with their type and no-store; the query
@@ -93,6 +95,38 @@ test('decoys present in the dist answer 404', async (t) => {
     assert.equal(r.status, 404, d);
     assert.notEqual(r.text, 'decoy', d);
   }
+});
+
+// Invariant: a symlink in the dist never serves a file outside it, whatever name it has.
+test('a symlink escaping the dist answers 404; one inside it is served', async (t) => {
+  const dist = await fixtureDist(t);
+  const outside = path.join(path.dirname(dist), `${path.basename(dist)}-secret.js`);
+  await fs.writeFile(outside, 'secret');
+  t.after(() => fs.rm(outside, { force: true }));
+  await fs.symlink(outside, path.join(dist, 'assets', 'escape.js'));
+  await fs.symlink('/etc/passwd', path.join(dist, 'passwd.js'));
+  await fs.symlink(path.join(dist, 'theme-init.js'), path.join(dist, 'inside.js'));
+  const { port } = await boot(t, { distDir: dist });
+  for (const p of ['/assets/escape.js', '/passwd.js']) {
+    const r = await rawRequest(port, 'GET', p);
+    assert.equal(r.status, 404, p);
+    assert.equal(r.json.code, 'NOT_FOUND', p);
+  }
+  const inside = await rawRequest(port, 'GET', '/inside.js');
+  assert.equal(inside.status, 200);
+  assert.equal(inside.text, '/* theme */');
+});
+
+// Invariant: a dist reached through a symlinked directory is served (the real paths are compared, not the spelling).
+test('a dist behind a symlinked directory is served', async (t) => {
+  const dist = await fixtureDist(t);
+  const link = `${dist}-link`;
+  await fs.symlink(dist, link);
+  t.after(() => fs.rm(link, { force: true }));
+  const { port } = await boot(t, { distDir: link });
+  const r = await rawRequest(port, 'GET', '/');
+  assert.equal(r.status, 200);
+  assert.equal(r.text, INDEX);
 });
 
 // Invariant: no SPA fallback — the host URLs and unknown paths are a real 404, as JSON, never index.html.

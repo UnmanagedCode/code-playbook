@@ -24,3 +24,14 @@ test('navigate writes ?query or the bare pathname, never a hash, and counts each
   expect(location.hash).toBe('');
   expect(navigationSeq()).toBe(before + 2);
 });
+
+// Invariant: each navigation adds exactly one history entry (embedded, cc's bridge turns each into a replace).
+test('each navigate adds exactly one history entry', () => {
+  const start = history.length;
+  navigate({ playbook: 'relay' });
+  expect(history.length).toBe(start + 1);
+  navigate({ edit: 'mine' });
+  expect(history.length).toBe(start + 2);
+  navigate({});
+  expect(history.length).toBe(start + 3);
+});

@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { createServer } from '../server.js';
-import { CSP } from '../src/securityHeaders.js';
 import { ASSET_RE, DEFAULT_DIST } from '../src/static.js';
 import { headTags } from './_frontendFiles.mjs';
 
@@ -22,6 +21,8 @@ if (built) walk('');
 const html = built ? readFileSync(indexPath, 'utf8') : '';
 const read = (rel) => readFileSync(path.join(DEFAULT_DIST, rel), 'utf8');
 const HOST = ['/pluginBridge.js', '/pluginTheme.css'];
+// The documented policy, written out: a change to src/securityHeaders.js must change this test too.
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
 const refs = () => [...html.matchAll(/\s(?:src|href)="([^"]*)"/g)].map((m) => m[1]);
 
 // Invariant: the UI is built (by `npm install`).
