@@ -202,8 +202,11 @@ export function App() {
           </ErrorBoundary>
         </div>
       </main>
-      {list && <IdDialog open={idDialog.open} request={idDialog.request} n={idDialog.n} takenIds={list.takenIds} onDone={idDone} />}
-      <ConfirmDialog open={confirm.open} request={confirm.request} n={confirm.n} onCancel={() => setConfirm((c) => ({ ...c, open: false }))} />
+      {/* Reset by the next dialog opened: a dialog that throws loses only itself. */}
+      <ErrorBoundary resetKey={`${idDialog.n}:${confirm.n}`} fallback={(e) => <DialogFailure message={e.message} />}>
+        {list && <IdDialog open={idDialog.open} request={idDialog.request} n={idDialog.n} takenIds={list.takenIds} onDone={idDone} />}
+        <ConfirmDialog open={confirm.open} request={confirm.request} n={confirm.n} onCancel={() => setConfirm((c) => ({ ...c, open: false }))} />
+      </ErrorBoundary>
     </div>
   );
 }
@@ -216,6 +219,19 @@ function ListFailure({ message }: { message: string }) {
       <AlertTitle>Cannot show the playbook list</AlertTitle>
       <AlertDescription><p>{message}</p></AlertDescription>
     </Alert>
+  );
+}
+
+/** In place of a dialog that threw while rendering: the page stays usable, and the next dialog renders afresh. */
+function DialogFailure({ message }: { message: string }) {
+  return (
+    <div className="mx-auto w-full max-w-[1400px] px-3 pb-4 md:px-6">
+      <Alert variant="destructive">
+        <CircleAlertIcon />
+        <AlertTitle>Cannot show this dialog</AlertTitle>
+        <AlertDescription><p>{message}</p></AlertDescription>
+      </Alert>
+    </div>
   );
 }
 

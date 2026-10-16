@@ -16,9 +16,6 @@ const NOT_BUILT = 'UI not built — run npm install';
 // missing, `/` and `/index.html` answer a plain-text 503. A file is served only
 // when its real path (symlinks resolved) lies inside the real dist dir.
 export function serveUi(distDir) {
-  // The dist dir's real path, cached once it resolves; a failure is not cached, so a dist built after startup is found.
-  let realRoot = null;
-  const resolveRoot = async () => (realRoot ??= await fs.realpath(distDir));
   return async (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     const name = req.path === '/' ? 'index.html' : ASSET_RE.exec(req.path)?.[1];
@@ -26,7 +23,8 @@ export function serveUi(distDir) {
     let root;
     let rel;
     try {
-      root = await resolveRoot();
+      // Resolved per request: a dist built, replaced or re-pointed after startup is followed.
+      root = await fs.realpath(distDir);
       rel = path.relative(root, await fs.realpath(path.join(root, name)));
     } catch (e) {
       if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') return next(e);

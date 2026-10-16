@@ -260,3 +260,39 @@ test('a load error that is not a user file has no Delete file', async () => {
   const broken = within(nav()).getByText('broken').closest('[data-id]') as HTMLElement;
   expect(within(broken).getByRole('button', { name: 'Delete file' })).toBeTruthy();
 });
+
+// Invariant: a dialog that throws while rendering (here the id dialog over a list without takenIds.reserved, which
+// only the dialog reads) leaves the page mounted and usable, with a message in its place.
+test('a throwing dialog leaves the page mounted', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  fakeApi({ list: { ...fixtures.list, takenIds: { ...fixtures.list.takenIds, reserved: undefined as never } } });
+  at('?playbook=relay');
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Duplicate' }));
+  expect(await screen.findByText('Cannot show this dialog')).toBeTruthy();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  await userEvent.click(within(nav()).getByRole('button', { name: /^solo/ }));
+  expect(await screen.findByRole('heading', { name: fixtures.details.solo.name })).toBeTruthy();
+});
+
+// Invariant: after the list pane has errored, a later good list load renders the list again (the boundary resets
+// per load).
+test('the list pane recovers on the next good list load', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  let saved = false;
+  fakeApi({
+    handle: (m, url) => {
+      if (m === 'PUT') saved = true;
+      return url === 'api/playbooks' && !saved ? json({ ...fixtures.list, playbooks: 'nope' }) : undefined;
+    },
+  });
+  at('?edit=mine');
+  render(<App />);
+  expect(await within(nav()).findByText('Cannot show the playbook list')).toBeTruthy();
+  const save = await screen.findByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  await waitFor(() => expect(save.disabled).toBe(false), { timeout: 3000 });
+  await userEvent.click(save);
+  await waitFor(() => expect(location.search).toBe('?playbook=mine'));
+  expect(await within(nav()).findByRole('button', { name: /^relay/ })).toBeTruthy();
+  expect(within(nav()).queryByText('Cannot show the playbook list')).toBeNull();
+});

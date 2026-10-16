@@ -8,7 +8,7 @@
 |---|---|
 | `server.js` | wiring only, with `X-Powered-By` disabled, in this order: `securityHeaders` → `/api` routes → `serveUi(distDir)` → JSON 404 → `jsonErrorHandler`. Logs the missing entry file at startup (`checkBuilt`), listens on `$PORT` |
 | `src/securityHeaders.js` | `CSP` and the middleware setting it and `X-Content-Type-Options: nosniff` on every response express produces (Node's parser-level 400/431 refusals bypass it: [protocol.md](protocol.md#response-headers)) |
-| `src/static.js` | `serveUi(distDir)`: `/` and `ASSET_RE` paths from `frontend/dist` (`DEFAULT_DIST`), only when the file's real path lies inside the real dist dir (the dist's real path is cached once it resolves, so a dist built after startup is still found); the unbuilt 503; `checkBuilt(distDir, log)` |
+| `src/static.js` | `serveUi(distDir)`: `/` and `ASSET_RE` paths from `frontend/dist` (`DEFAULT_DIST`), only when the file's real path lies inside the dist dir's real path, both resolved per request (so a dist built, replaced or re-pointed after startup is followed); the unbuilt 503; `checkBuilt(distDir, log)` |
 | `src/playbookId.js` | `playbookIdPath`: an id's segment-encoded path below `/api/playbooks/`, or null for an empty, `.` or `..` segment. Shared by the cc client and the frontend's `api.ts` |
 | `src/conductorClient.js` | the only module that talks to cc. `forward` answers `{status, body}`; `list`/`validate` throw on anything but 200 JSON. `playbookPath` is cc's path for an id (via `playbookIdPath`) |
 | `src/playbookStore.js` | overlay dir I/O: `assertOverlayId` (path safety), atomic `write`, `remove` |
@@ -32,7 +32,7 @@
 | `src/components/StageGraph.tsx` | SVG render of a `layoutGraph` result; nodes are focusable buttons |
 | `src/components/IdDialog.tsx`, `ConfirmDialog.tsx` | the id prompt (Duplicate, New playbook) and the destructive confirm (Delete, Delete file, Remove stage) |
 | `src/components/MessagePanel.tsx`, `BackButton.tsx`, `AppHeader.tsx` | messages, the phone-only Back, the header |
-| `src/components/ErrorBoundary.tsx` | a render failure shows a fallback instead of unmounting the page; reset by `resetKey`. Wraps the list pane (reset per list load), the main pane (reset per navigation) and the stage graph (reset per detail) |
+| `src/components/ErrorBoundary.tsx` | a render failure shows a fallback instead of unmounting the page; reset by `resetKey`. Wraps the list pane (reset per list load), the main pane (reset per navigation), the stage graph (reset per detail) and the dialogs (reset by the next dialog opened) |
 | `src/components/editor/useEditor.ts` | the editor's state machine: debounced validate, stale verdicts dropped, target lookup for the drift warning, save, stage-name drafts |
 | `src/components/editor/Editor.tsx`, `StageCard.tsx`, `NeedsRow.tsx`, `ToolRow.tsx`, `TransitionRow.tsx`, `Field.tsx`, `ErrorList.tsx` | the editor's controls; every edit goes through `formEdits` |
 | `src/model/formModel.ts` | **pure** form state and transformations |
@@ -126,7 +126,7 @@ Nothing is written without cc's `ok:true` for that exact body.
 | `model/listModel.test.ts` | group order, the empty User group, load-error groups, list error text, viewer text |
 | `model/realConductor.test.ts` | skipped unless `RUN_REAL_CC=1` and `CONDUCTOR_URL`: live contract shape, every live playbook round-tripped through cc's real validator, the New playbook seed |
 | `lib/route.test.ts`, `lib/api.test.ts`, `themeInit.test.ts` | routes, no hash, one history entry per navigation; the exact wire format, `ApiError`s, a `/`-led path and every traversal id refused before any request; standalone theme follows the OS, embedded does nothing |
-| `components/App.test.tsx` | list skeleton then groups, list 404, selection, read-only edit route, a reloaded draft URL, Delete (confirm, DELETE, flash) and its failure, Delete file only for a user file, stale detail dropped, a traversal id refused without a request, a throwing graph, detail or list contained by its error boundary (and the crash screen's Back going home), a save opening the saved detail with the flash, the flash cleared by the next navigation, `release-copy` for `acme/release` |
+| `components/App.test.tsx` | list skeleton then groups, list 404, selection, read-only edit route, a reloaded draft URL, Delete (confirm, DELETE, flash) and its failure, Delete file only for a user file, stale detail dropped, a traversal id refused without a request, a throwing graph, detail, list or dialog contained by its error boundary (the crash screen's Back going home, the list pane recovering on the next good load), a save opening the saved detail with the flash, the flash cleared by the next navigation, `release-copy` for `acme/release` |
 | `components/IdDialog.test.tsx` | notices, the Continue gate, Enter resolves the trimmed id, Escape/Cancel resolve null and return focus, initial id selected |
 | `components/StageGraph.test.tsx` | nodes and edges, click/Enter/Space, no content-derived attributes |
 | `components/security.test.tsx` | hostile content renders as text in the detail, list and editor: no loading, linking, submitting or styling element, no handler attribute, SVG only from icons and the graph, `style` only on Radix's checkbox indicator with Radix's value |
@@ -161,6 +161,9 @@ curl -XPOST $B/api/projects/external -H 'content-type: application/json' -d '{"n
 curl -XPOST $B/api/plugins/rescan; curl -XPOST $B/api/plugins/code-playbook/enable; curl -XPOST $B/api/plugins/code-playbook/start
 CC_URL=$B CC_SCRATCH_PROJECTS=<CC_ISOLATED_ROOT>/projects CC_PROJECTS_ROOT=<projects root with code-playwright> npm run harness:embedded
 curl -XPOST $B/api/plugins/code-playbook/stop   # before stopping the scratch cc
+git checkout -- CONVENTIONS.md                  # the scratch cc's rescan/enable rewrote it
 ```
+
+The scratch cc's rescan and enable regenerate this checkout's `CONVENTIONS.md` without the code-playwright fragment (its projects root has no code-playwright plugin): restore it with `git checkout -- CONVENTIONS.md` afterwards, and never commit it.
 
 It checks the host URLs answer 200 and Geist loads; inside cc's shell the frame follows cc's theme (an OS flip under "system", and cc's own `<html>` class) with the graph repainting; a duplicate saves into the scratch store's overlay dir and is deleted again; the visit adds one joint history entry and Back leaves `#plugin/code-playbook`; no CSP violation.

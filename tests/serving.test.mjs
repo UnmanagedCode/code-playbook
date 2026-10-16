@@ -153,6 +153,26 @@ test('serveUi: a dist built after startup is served', async (t) => {
   assert.equal(r.text, INDEX);
 });
 
+// Invariant: the dist's real path is resolved per request: a dist dir replaced by a symlink to another populated
+// dir after a first request is served from its new target.
+test('serveUi: a dist replaced by a symlink after a first request is followed', async (t) => {
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'code-playbook-swap-'));
+  t.after(() => fs.rm(parent, { recursive: true, force: true }));
+  const dist = path.join(parent, 'dist');
+  await fs.mkdir(dist);
+  await fs.writeFile(path.join(dist, 'index.html'), 'first');
+  const other = path.join(parent, 'other');
+  await fs.mkdir(other);
+  await fs.writeFile(path.join(other, 'index.html'), 'second');
+  const { port } = await boot(t, { distDir: dist });
+  assert.equal((await rawRequest(port, 'GET', '/')).text, 'first');
+  await fs.rm(dist, { recursive: true });
+  await fs.symlink(other, dist);
+  const r = await rawRequest(port, 'GET', '/');
+  assert.equal(r.status, 200);
+  assert.equal(r.text, 'second');
+});
+
 // Invariant: a dist reached through a symlinked directory is served (the real paths are compared, not the spelling).
 test('a dist behind a symlinked directory is served', async (t) => {
   const dist = await fixtureDist(t);

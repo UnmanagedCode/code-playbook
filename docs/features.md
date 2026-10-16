@@ -11,7 +11,7 @@ The **Code Playbook** tab (cc nav label from `conductor.plugin.json`). Also runs
 - The User group is always shown and carries **New playbook**; empty, it says "No user playbooks yet."
 - **Load errors**: cc's `errors`, grouped by id. An id that is in `takenIds.user` (a file in the overlay dir that cc refused) offers **Delete file**. This is the only way to remove a broken file from the GUI: cc won't load it, so there is nothing to open in the editor.
 - A user file whose id is a built-in id overrides that built-in. It is listed under User and badged **overrides built-in** in its detail.
-- A list cc answered in a shape the pane cannot draw shows **Cannot show the playbook list** with the error; the rest of the page keeps working.
+- A list cc answered in a shape the pane cannot draw shows **Cannot show the playbook list** with the error; the rest of the page keeps working, and the next good load shows the list again. A dialog that cannot be drawn shows **Cannot show this dialog** below the page instead.
 - A list that cannot be loaded shows **Cannot load playbooks** with the reason, and the main pane **Playbooks unavailable**. A cc that answers 404 to `/api/playbooks` reads "cc does not serve /api/playbooks yet — restart code-conductor."; an unreachable backend reads "the code-playbook backend is unreachable: …".
 - Below Tailwind's `md` breakpoint, the list hides while a playbook, editor or draft is open, and **All playbooks** returns to it.
 
