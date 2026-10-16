@@ -14,12 +14,12 @@ export interface ConfirmRequest {
 
 /**
  * A destructive confirm. Kept mounted and toggled by `open` so Radix returns focus to the opener on close;
- * `request` holds the last content through the close animation, and `n` resets busy/error per request.
+ * its content renders only while open, and `n` resets busy/error per request.
  */
 export function ConfirmDialog({ open, request, n, onCancel }: { open: boolean; request: ConfirmRequest | null; n: number; onCancel: () => void }) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
-      {request && <ConfirmContent key={n} request={request} onCancel={onCancel} />}
+      {open && request && <ConfirmContent key={n} request={request} onCancel={onCancel} />}
     </Dialog>
   );
 }

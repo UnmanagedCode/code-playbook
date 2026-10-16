@@ -262,17 +262,41 @@ test('a load error that is not a user file has no Delete file', async () => {
 });
 
 // Invariant: a dialog that throws while rendering (here the id dialog over a list without takenIds.reserved, which
-// only the dialog reads) leaves the page mounted and usable, with a message in its place.
-test('a throwing dialog leaves the page mounted', async () => {
+// only that dialog reads) is closed with a message in its place; the page stays usable, a different dialog (Delete's
+// confirm) still opens and works, and once the data no longer throws, Duplicate opens normally again.
+test('a throwing dialog closes alone; other dialogs and its own next opening still work', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
-  fakeApi({ list: { ...fixtures.list, takenIds: { ...fixtures.list.takenIds, reserved: undefined as never } } });
+  let deleted = false;
+  const { calls } = fakeApi({
+    handle: (m, url) => {
+      if (m === 'DELETE') deleted = true;
+      if (url === 'api/playbooks' && !deleted) return json({ ...fixtures.list, takenIds: { ...fixtures.list.takenIds, reserved: undefined } });
+      return undefined;
+    },
+  });
   at('?playbook=relay');
   render(<App />);
   await userEvent.click(await screen.findByRole('button', { name: 'Duplicate' }));
   expect(await screen.findByText('Cannot show this dialog')).toBeTruthy();
   expect(screen.queryByRole('dialog')).toBeNull();
-  await userEvent.click(within(nav()).getByRole('button', { name: /^solo/ }));
-  expect(await screen.findByRole('heading', { name: fixtures.details.solo.name })).toBeTruthy();
+
+  // A different dialog: Delete's confirm opens and deletes.
+  await userEvent.click(within(nav()).getByRole('button', { name: /^mine/ }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+  const confirm = await screen.findByRole('dialog', { name: 'Delete mine.json?' });
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Delete' }));
+  await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.url === 'api/playbooks/mine')).toBe(true));
+  expect(await screen.findByRole('heading', { name: 'Deleted mine.json.' })).toBeTruthy();
+
+  // The reloaded list has takenIds.reserved again: Duplicate opens, with its live notices working.
+  await userEvent.click(within(nav()).getByRole('button', { name: /^relay/ }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Duplicate' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Duplicate relay' });
+  expect(screen.queryByText('Cannot show this dialog')).toBeNull();
+  const input = within(dialog).getByRole('textbox', { name: 'Id' });
+  await userEvent.clear(input);
+  await userEvent.type(input, 'custom');
+  expect(within(dialog).getByText("'custom' is reserved: cc ignores an overlay file with this id.")).toBeTruthy();
 });
 
 // Invariant: after the list pane has errored, a later good list load renders the list again (the boundary resets

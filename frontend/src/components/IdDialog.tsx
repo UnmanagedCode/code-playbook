@@ -12,12 +12,13 @@ export interface IdRequest { title: string; initial: string }
 
 /**
  * Asks for a new playbook id, showing the takenIds notices live as it is typed. `onDone` gets the trimmed id,
- * or null when cancelled. Kept mounted and toggled by `open` so focus returns to the opener; `n` resets the field.
+ * or null when cancelled. Kept mounted and toggled by `open` so focus returns to the opener; the form renders only
+ * while open, and `n` resets it.
  */
 export function IdDialog({ open, request, n, takenIds, onDone }: { open: boolean; request: IdRequest | null; n: number; takenIds: TakenIds; onDone: (id: string | null) => void }) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onDone(null); }}>
-      {request && <IdForm key={n} request={request} takenIds={takenIds} onDone={onDone} />}
+      {open && request && <IdForm key={n} request={request} takenIds={takenIds} onDone={onDone} />}
     </Dialog>
   );
 }

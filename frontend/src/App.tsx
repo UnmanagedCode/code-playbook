@@ -202,9 +202,15 @@ export function App() {
           </ErrorBoundary>
         </div>
       </main>
-      {/* Reset by the next dialog opened: a dialog that throws loses only itself. */}
-      <ErrorBoundary resetKey={`${idDialog.n}:${confirm.n}`} fallback={(e) => <DialogFailure message={e.message} />}>
+      {/* One boundary per dialog. A dialog that throws is closed (the id request resolves to nothing, the confirm
+          is dismissed), so it stops rendering; its message stays until that dialog is next opened (`n` changes),
+          and the other dialog is unaffected. */}
+      <ErrorBoundary resetKey={idDialog.n} fallback={(e) => <DialogFailure message={e.message} />}
+        onError={() => setIdDialog((d) => ({ ...d, open: false, request: null }))}>
         {list && <IdDialog open={idDialog.open} request={idDialog.request} n={idDialog.n} takenIds={list.takenIds} onDone={idDone} />}
+      </ErrorBoundary>
+      <ErrorBoundary resetKey={confirm.n} fallback={(e) => <DialogFailure message={e.message} />}
+        onError={() => setConfirm((c) => ({ ...c, open: false, request: null }))}>
         <ConfirmDialog open={confirm.open} request={confirm.request} n={confirm.n} onCancel={() => setConfirm((c) => ({ ...c, open: false }))} />
       </ErrorBoundary>
     </div>
@@ -222,7 +228,7 @@ function ListFailure({ message }: { message: string }) {
   );
 }
 
-/** In place of a dialog that threw while rendering: the page stays usable, and the next dialog renders afresh. */
+/** In place of a dialog that threw while rendering: the page and the other dialog stay usable. */
 function DialogFailure({ message }: { message: string }) {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-3 pb-4 md:px-6">
