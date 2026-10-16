@@ -1,6 +1,7 @@
-import test from 'node:test';
+// @ts-nocheck — ported verbatim from the node:test suite: the assertion bodies stay untyped so they stay identical.
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { canSave } from '../public/saveGate.js';
+import { canSave } from './saveGate';
 
 const form = { id: 'x', stages: [{ key: 's1', name: 'a' }, { key: 's2', name: 'b' }] };
 const ready = { form, rev: 3, validation: { rev: 3, ok: true, errors: [] }, localErrors: [], renameErrors: {}, saving: false };

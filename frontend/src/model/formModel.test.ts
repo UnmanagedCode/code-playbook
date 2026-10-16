@@ -1,10 +1,11 @@
-import test from 'node:test';
+// @ts-nocheck — ported verbatim from the node:test suite: the assertion bodies stay untyped so they stay identical.
+import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadFixtures, cannedValidate } from './fixtures/fakeConductor.mjs';
+import { loadFixtures, cannedValidate } from '../../../tests/fixtures/fakeConductor.mjs';
 import {
   formFromDetail, definitionFromForm, renameStage, removeStage, duplicateForm, newPlaybookForm,
   toggleEntry, idNotices, placeErrors,
-} from '../public/formModel.js';
+} from './formModel';
 
 const { list, details } = await loadFixtures();
 
@@ -37,9 +38,9 @@ const def = (form) => {
   return r.definition;
 };
 
-test('the form round-trip is lossless over every fixture detail', async (t) => {
+describe('the form round-trip is lossless over every fixture detail', () => {
   for (const d of Object.values(details)) {
-    await t.test(d.id, () => assert.deepEqual(def(formFromDetail(d)), expectedDefinition(d)));
+    test(d.id, () => assert.deepEqual(def(formFromDetail(d)), expectedDefinition(d)));
   }
 });
 

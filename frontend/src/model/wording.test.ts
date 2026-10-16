@@ -1,6 +1,7 @@
-import test from 'node:test';
+// @ts-nocheck — ported verbatim from the node:test suite: the assertion bodies stay untyped so they stay identical.
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { driftWarning, renameWarning, deleteConfirm } from '../public/wording.js';
+import { driftWarning, renameWarning, deleteConfirm } from './wording';
 
 // liveWorkers is a count, or null when cc could not read it.
 

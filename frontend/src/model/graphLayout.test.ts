@@ -1,7 +1,8 @@
-import test from 'node:test';
+// @ts-nocheck — ported verbatim from the node:test suite: the assertion bodies stay untyped so they stay identical.
+import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { loadFixtures } from './fixtures/fakeConductor.mjs';
-import { layoutGraph } from '../public/graphLayout.js';
+import { loadFixtures } from '../../../tests/fixtures/fakeConductor.mjs';
+import { layoutGraph } from './graphLayout';
 
 const { details } = await loadFixtures();
 
@@ -101,9 +102,9 @@ function assertNoBackingOnAnArrow(g) {
 
 const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-test('the graph shows the whole definition, for every fixture', async (t) => {
+describe('the graph shows the whole definition, for every fixture', () => {
   for (const d of Object.values(details)) {
-    await t.test(d.id, () => {
+    test(d.id, () => {
       const g = layoutGraph(d);
       assert.deepEqual(g.nodes.map((n) => n.id), Object.keys(d.stages), 'one node per stage, in declaration order');
       for (let i = 0; i < g.nodes.length; i++) {
@@ -225,7 +226,7 @@ test('a transition and needs between the same pair: the transition label is clea
   assertNoLabelCrossed(g);
 });
 
-test('a label may sit over another pair\'s line: the scoped check holds, and no arrowhead is covered', async (t) => {
+describe('a label may sit over another pair\'s line: the scoped check holds, and no arrowhead is covered', () => {
   const s = (needs = []) => ({ needs });
   const shapes = {
     'another pair\'s curve crosses a forward label': {
@@ -241,7 +242,7 @@ test('a label may sit over another pair\'s line: the scoped check holds, and no 
     },
   };
   for (const [name, detail] of Object.entries(shapes)) {
-    await t.test(name, () => {
+    test(name, () => {
       const g = layoutGraph(detail);
       assertNoEdgeCrossesANode(g);
       assertNoLabelCrossed(g);
