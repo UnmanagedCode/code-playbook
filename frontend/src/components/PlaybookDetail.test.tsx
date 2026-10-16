@@ -1,6 +1,6 @@
 // The read-only detail from cc's fixtures: which stages are marked entry and spawnable, the read-only note,
 // and the structure of the needs line, the tools table and the transitions table.
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { PlaybookDetail } from './PlaybookDetail';
 import { fixtures } from '@/test/fakeApi';
@@ -34,8 +34,10 @@ test('the read-only note and actions follow the source', () => {
     expect(within(screen.getByRole('group', { name: 'Actions' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Duplicate']);
     unmount();
   }
-  renderDetail(fixtures.details.mine);
-  expect(screen.queryByText(readOnlyNote('builtin'))).toBeNull();
+  const mine = fixtures.details.mine;
+  renderDetail(mine);
+  // readOnlyNote(source) is the sentence a dropped `editable` gate would render for this source.
+  expect(screen.queryByText(readOnlyNote(mine.source))).toBeNull();
   expect(within(screen.getByRole('group', { name: 'Actions' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Edit', 'Duplicate', 'Delete']);
 });
 
@@ -60,4 +62,30 @@ test('needs, tools and transitions structure', () => {
   expect(Object.values(solo.stages).some((s) => Object.keys(s.tools).length === 0), 'the fixture has a stage with no tools').toBe(true);
   const transitions = screen.getByRole('heading', { name: 'Transitions' }).closest('[data-slot="card"]') as HTMLElement;
   expect(transitions.querySelectorAll('tbody > tr').length).toBe(solo.transitions.length);
+});
+
+// Invariant: the header's entry-stage chips name every entry stage, in order (outside the stage panels).
+test('the header lists the entry stages as chips', () => {
+  for (const id of ['mine', 'relay']) {
+    const d = fixtures.details[id];
+    const { container, unmount } = renderDetail(d);
+    const row = screen.getByText('entry stages').parentElement!;
+    expect(row.closest('section[data-stage]')).toBeNull();
+    expect([...row.querySelectorAll('[data-slot="badge"]')].map((b) => b.textContent)).toEqual(d.entryStages);
+    expect(container.contains(row)).toBe(true);
+    unmount();
+  }
+});
+
+// Invariant: a new detail on the same mounted view clears a graph failure (the boundary resets per detail).
+test('the graph boundary resets for the next detail', () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const good = fixtures.details.relay;
+  const props = { list: fixtures.list, flash: null, onBack: () => {}, onEdit: () => {}, onDuplicate: () => {}, onDelete: () => {} };
+  const { rerender } = render(<PlaybookDetail detail={{ ...good, entryStages: ['ghost'] }} {...props} />);
+  expect(screen.getByText(/^The stage graph cannot be drawn: /)).toBeTruthy();
+  rerender(<PlaybookDetail detail={good} {...props} />);
+  expect(screen.getByRole('group', { name: 'stage graph of relay' })).toBeTruthy();
+  expect(screen.queryByText(/^The stage graph cannot be drawn: /)).toBeNull();
+  vi.restoreAllMocks();
 });

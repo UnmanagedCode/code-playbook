@@ -156,6 +156,28 @@ test('a detail that throws while rendering shows a message and keeps the list', 
   expect(screen.queryByRole('heading', { name: 'Cannot show relay' })).toBeNull();
 });
 
+// Invariant: the crash screen's Back returns home.
+test('All playbooks on the crash screen goes home', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  fakeApi({ details: { ...fixtures.details, relay: { id: 'relay' } as never } });
+  at('?playbook=relay');
+  render(<App />);
+  await screen.findByRole('heading', { name: 'Cannot show relay' });
+  await userEvent.click(screen.getByRole('button', { name: 'All playbooks' }));
+  expect(location.search).toBe('');
+  expect(await screen.findByRole('heading', { name: 'Select a playbook' })).toBeTruthy();
+});
+
+// Invariant: a malformed list leaves the page mounted and shows a message in the list pane.
+test('a list that throws while rendering leaves the page up', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  fakeApi({ list: { ...fixtures.list, playbooks: 'nope' as never } });
+  render(<App />);
+  expect(await within(nav()).findByText('Cannot show the playbook list')).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Code Playbook' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Select a playbook' })).toBeTruthy();
+});
+
 // Invariant: a traversal id never produces a request outside api/playbooks/; the route says it cannot open it.
 test('a traversal id is refused without a request', async () => {
   for (const id of ['../../api/health', '..', 'a/./b', 'acme//release']) {
@@ -163,7 +185,7 @@ test('a traversal id is refused without a request', async () => {
     at(`?playbook=${encodeURIComponent(id)}`);
     const { unmount } = render(<App />);
     expect(await screen.findByRole('heading', { name: `Cannot open ${id}` })).toBeTruthy();
-    expect(calls.map((c) => c.url)).toEqual(calls.map(() => 'api/playbooks'));
+    expect(calls.map((c) => c.url)).toEqual(['api/playbooks']);
     unmount();
     vi.unstubAllGlobals();
   }

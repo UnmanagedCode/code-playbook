@@ -1,13 +1,13 @@
 // Pins how the backend serves the built UI (src/static.js) and the headers
 // every response carries (src/securityHeaders.js), against a fixture dist so
 // it holds whether or not `npm install` has built the real one.
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { createServer } from '../server.js';
-import { checkBuilt } from '../src/static.js';
+import { checkBuilt, serveUi } from '../src/static.js';
 import { startFakeConductor } from './fixtures/fakeConductor.mjs';
 import { rawRequest, sampleDefinition } from './helpers.mjs';
 import { FRONTEND, headTags } from './_frontendFiles.mjs';
@@ -115,6 +115,42 @@ test('a symlink escaping the dist answers 404; one inside it is served', async (
   const inside = await rawRequest(port, 'GET', '/inside.js');
   assert.equal(inside.status, 200);
   assert.equal(inside.text, '/* theme */');
+});
+
+// Invariant: the realpath guard alone contains an escape: an escaping name goes to next() and never reaches sendFile.
+test('serveUi: an escaping symlink calls next() without sendFile', async (t) => {
+  const dist = await fixtureDist(t);
+  const outside = path.join(path.dirname(dist), `${path.basename(dist)}-secret.js`);
+  await fs.writeFile(outside, 'secret');
+  t.after(() => fs.rm(outside, { force: true }));
+  await fs.symlink(outside, path.join(dist, 'assets', 'escape.js'));
+  const mw = serveUi(dist);
+  const call = async (p) => {
+    const res = { sendFile: mock.fn() };
+    const next = mock.fn();
+    await mw({ method: 'GET', path: p }, res, next);
+    return { sendFile: res.sendFile.mock.calls, next: next.mock.calls.map((c) => c.arguments) };
+  };
+  assert.deepEqual(await call('/assets/escape.js'), { sendFile: [], next: [[]] });
+  const ok = await call('/theme-init.js');
+  assert.deepEqual(ok.next, []);
+  assert.equal(ok.sendFile.length, 1);
+  assert.equal(ok.sendFile[0].arguments[0], 'theme-init.js');
+  assert.equal(ok.sendFile[0].arguments[1].root, await fs.realpath(dist));
+});
+
+// Invariant: a dist missing at startup is found once it is built (a failed realpath is not cached).
+test('serveUi: a dist built after startup is served', async (t) => {
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'code-playbook-late-'));
+  t.after(() => fs.rm(parent, { recursive: true, force: true }));
+  const dist = path.join(parent, 'dist');
+  const { port } = await boot(t, { distDir: dist });
+  assert.equal((await rawRequest(port, 'GET', '/')).status, 503);
+  await fs.mkdir(dist);
+  await fs.writeFile(path.join(dist, 'index.html'), INDEX);
+  const r = await rawRequest(port, 'GET', '/');
+  assert.equal(r.status, 200);
+  assert.equal(r.text, INDEX);
 });
 
 // Invariant: a dist reached through a symlinked directory is served (the real paths are compared, not the spelling).

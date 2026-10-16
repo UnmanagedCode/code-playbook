@@ -247,3 +247,21 @@ test('an edit clears a previous save failure', async () => {
   await u.type(screen.getByRole('textbox', { name: 'Name' }), '!');
   expect(screen.queryByText('could not write the file')).toBeNull();
 });
+
+// Invariant: removing a stage two needs anchor on opens the confirm (listing the repeated impact line) with no
+// console error (a duplicate React key would log one).
+test('the remove-stage confirm lists a repeated impact line without a console error', async () => {
+  fakeApi();
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const form = formFromDetail(fixtures.details.mine);
+  const review = form.stages.find((s) => s.name === 'review')!;
+  review.needs = [{ stage: 'draft', position: ['draft'], liveness: 'live' }, { stage: 'draft', position: ['draft'], liveness: 'any' }];
+  renderEditor({ form });
+  await settle();
+  const u = user();
+  await u.click(within(stage('draft')).getByRole('button', { name: 'Remove stage' }));
+  const dialog = await screen.findByRole('dialog', { name: "Remove stage 'draft'?" });
+  expect(within(dialog).getAllByRole('listitem').map((li) => li.textContent).filter((t) => t === "stage 'review' needs 'draft'")).toHaveLength(2);
+  expect(errors).not.toHaveBeenCalled();
+  errors.mockRestore();
+});

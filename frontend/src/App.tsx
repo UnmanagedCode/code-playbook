@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CircleAlertIcon } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppHeader } from '@/components/AppHeader';
 import { ConfirmDialog, type ConfirmRequest } from '@/components/ConfirmDialog';
@@ -85,7 +87,7 @@ export function App() {
       n: c.n + 1,
       request: {
         title,
-        body: paragraphs.length > 0 && paragraphs.map((p) => <p key={p}>{p}</p>),
+        body: paragraphs.length > 0 && paragraphs.map((p, i) => <p key={i}>{p}</p>),
         confirmLabel: 'Delete',
         onConfirm: async () => {
           try {
@@ -181,13 +183,15 @@ export function App() {
       <AppHeader />
       <main className="mx-auto grid w-full max-w-[1400px] flex-1 content-start gap-4 p-3 md:grid-cols-[290px_minmax(0,1fr)] md:gap-6 md:p-6">
         <nav aria-label="Playbooks" className={cn('min-w-0 flex-col', hasSelection ? 'hidden md:flex' : 'flex')}>
-          <PlaybookList
-            state={listState}
-            selectedId={route.selectedId}
-            onSelect={(id) => navigate({ playbook: id })}
-            onNew={() => askId({ title: 'New playbook', initial: '' }, (id) => startDraft({ form: newPlaybookForm(id), title: 'New playbook', back: {} }))}
-            onDeleteFile={(id) => askDelete(id, deleteFileConfirm(id))}
-          />
+          <ErrorBoundary resetKey={listState} fallback={(e) => <ListFailure message={e.message} />}>
+            <PlaybookList
+              state={listState}
+              selectedId={route.selectedId}
+              onSelect={(id) => navigate({ playbook: id })}
+              onNew={() => askId({ title: 'New playbook', initial: '' }, (id) => startDraft({ form: newPlaybookForm(id), title: 'New playbook', back: {} }))}
+              onDeleteFile={(id) => askDelete(id, deleteFileConfirm(id))}
+            />
+          </ErrorBoundary>
         </nav>
         <div className="min-w-0">
           <ErrorBoundary
@@ -201,6 +205,17 @@ export function App() {
       {list && <IdDialog open={idDialog.open} request={idDialog.request} n={idDialog.n} takenIds={list.takenIds} onDone={idDone} />}
       <ConfirmDialog open={confirm.open} request={confirm.request} n={confirm.n} onCancel={() => setConfirm((c) => ({ ...c, open: false }))} />
     </div>
+  );
+}
+
+/** The list pane's fallback when cc's list cannot be shown (a malformed answer): the rest of the page stays up. */
+function ListFailure({ message }: { message: string }) {
+  return (
+    <Alert variant="destructive">
+      <CircleAlertIcon />
+      <AlertTitle>Cannot show the playbook list</AlertTitle>
+      <AlertDescription><p>{message}</p></AlertDescription>
+    </Alert>
   );
 }
 

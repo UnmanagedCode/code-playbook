@@ -73,7 +73,7 @@ export function Editor({ mode, form, title, originalId, originalLive, list, onSa
         body: impact.length > 0 && (
           <>
             <p>This also removes:</p>
-            <ul className="list-disc pl-5">{impact.map((x) => <li key={x}>{x}</li>)}</ul>
+            <ul className="list-disc pl-5">{impact.map((x, i) => <li key={i}>{x}</li>)}</ul>
           </>
         ),
         onConfirm: () => {
