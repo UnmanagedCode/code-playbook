@@ -1,0 +1,75 @@
+{
+  "duplicate-mine": {
+    "start": { "duplicate": "mine", "id": "rt-mine" },
+    "saved": "rt-mine",
+    "steps": [
+      { "op": "field", "field": "name", "value": "Round trip" },
+      { "op": "field", "field": "description", "value": "Every editor gesture, once." },
+      { "op": "renameStage", "stage": "build", "to": "make" },
+      { "op": "entry", "stage": "review", "on": false },
+      { "op": "entry", "stage": "review", "on": true },
+      { "op": "entry", "stage": "hold", "on": true },
+      { "op": "workers", "stage": "review", "value": "one" },
+      { "op": "stageDescription", "stage": "review", "value": "Review the draft." },
+      { "op": "stageDescription", "stage": "hold", "value": "" },
+      { "op": "addNeed", "stage": "hold" },
+      { "op": "needAnchor", "stage": "hold", "index": 0, "value": "make" },
+      { "op": "needPosition", "stage": "hold", "index": 0, "member": "*", "on": true },
+      { "op": "needLiveness", "stage": "hold", "index": 0, "value": "retired" },
+      { "op": "needPosition", "stage": "review", "index": 0, "member": "make", "on": false },
+      { "op": "addNeed", "stage": "make" },
+      { "op": "removeNeed", "stage": "make", "index": 1 },
+      { "op": "policy", "stage": "hold", "tool": "spawn_instance", "value": "pin" },
+      { "op": "pinJson", "stage": "hold", "tool": "spawn_instance", "index": 0, "value": "\"main\"" },
+      { "op": "addPin", "stage": "hold", "tool": "spawn_instance" },
+      { "op": "pinJson", "stage": "hold", "tool": "spawn_instance", "index": 1, "value": "true" },
+      { "op": "pinArg", "stage": "hold", "tool": "spawn_instance", "index": 0, "value": "effort" },
+      { "op": "pinJson", "stage": "hold", "tool": "spawn_instance", "index": 0, "value": "3" },
+      { "op": "removePin", "stage": "hold", "tool": "spawn_instance", "index": 1 },
+      { "op": "policy", "stage": "draft", "tool": "kill_instance", "value": "allow" },
+      { "op": "policy", "stage": "draft", "tool": "*", "value": "deny" },
+      { "op": "removeTool", "stage": "draft", "tool": "kill_instance" },
+      { "op": "addTool", "stage": "draft", "tool": "set_idle_timeout" },
+      { "op": "policy", "stage": "draft", "tool": "set_idle_timeout", "value": "pin" },
+      { "op": "pinJson", "stage": "draft", "tool": "set_idle_timeout", "index": 0, "value": "600" },
+      { "op": "policy", "stage": "review", "tool": "spawn_instance", "value": "none" },
+      { "op": "policy", "stage": "review", "tool": "spawn_instance", "value": "pin" },
+      { "op": "pinJson", "stage": "review", "tool": "spawn_instance", "index": 0, "value": "null" },
+      { "op": "policy", "stage": "make", "tool": "send_prompt", "value": "allow" },
+      { "op": "addTool", "stage": "make", "tool": "*" },
+      { "op": "transition", "index": 0, "field": "via", "value": "send_prompt" },
+      { "op": "transition", "index": 1, "field": "description", "value": "Parked." },
+      { "op": "removeTransition", "index": 2 },
+      { "op": "addTransition" },
+      { "op": "transition", "index": 2, "field": "from", "value": "hold" },
+      { "op": "transition", "index": 2, "field": "to", "value": "review" },
+      { "op": "transition", "index": 2, "field": "via", "value": "reject_plan" },
+      { "op": "transition", "index": 2, "field": "description", "value": "Back to review." },
+      { "op": "addStage" },
+      { "op": "renameStage", "stage": "stage-5", "to": "gone" },
+      { "op": "addTransition" },
+      { "op": "transition", "index": 3, "field": "from", "value": "gone" },
+      { "op": "transition", "index": 3, "field": "to", "value": "make" },
+      { "op": "removeStage", "stage": "gone" },
+      { "op": "addStage" },
+      { "op": "renameStage", "stage": "stage-5", "to": "extra" },
+      { "op": "entry", "stage": "extra", "on": true },
+      { "op": "stageDescription", "stage": "extra", "value": "An extra stage." }
+    ]
+  },
+  "rename-mine": {
+    "start": { "edit": "mine" },
+    "saved": "mine-2",
+    "steps": [
+      { "op": "field", "field": "id", "value": "mine-2" }
+    ]
+  },
+  "new-fresh": {
+    "start": { "new": "fresh" },
+    "saved": "fresh",
+    "steps": [
+      { "op": "field", "field": "name", "value": "Fresh" },
+      { "op": "field", "field": "description", "value": "A fresh playbook." }
+    ]
+  }
+}

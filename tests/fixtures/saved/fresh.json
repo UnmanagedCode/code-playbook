@@ -1,0 +1,18 @@
+{
+  "id": "fresh",
+  "name": "Fresh",
+  "description": "A fresh playbook.",
+  "entryStages": [
+    "start"
+  ],
+  "stages": {
+    "start": {
+      "needs": [],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": "allow"
+      }
+    }
+  },
+  "transitions": []
+}

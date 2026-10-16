@@ -1,0 +1,120 @@
+{
+  "id": "rt-mine",
+  "name": "Round trip",
+  "description": "Every editor gesture, once.",
+  "entryStages": [
+    "draft",
+    "review",
+    "hold",
+    "extra"
+  ],
+  "stages": {
+    "draft": {
+      "needs": [],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "model": "planner",
+            "createWorktree": true
+          }
+        },
+        "*": "deny",
+        "set_idle_timeout": {
+          "pin": {
+            "timeoutSeconds": 600
+          }
+        }
+      },
+      "description": "Spawn a drafting worker and brief it."
+    },
+    "review": {
+      "needs": [
+        {
+          "stage": "draft",
+          "position": [
+            "draft"
+          ],
+          "liveness": "any"
+        }
+      ],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "baseWorktree": null
+          }
+        }
+      },
+      "description": "Review the draft."
+    },
+    "make": {
+      "needs": [
+        {
+          "stage": "draft",
+          "position": [
+            "*"
+          ],
+          "liveness": "retired"
+        }
+      ],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "mode": "bypassPermissions",
+            "baseWorktree": null
+          }
+        },
+        "send_prompt": "allow",
+        "set_mode": "deny",
+        "*": "allow"
+      },
+      "description": "Hand the draft to a fresh builder."
+    },
+    "hold": {
+      "needs": [
+        {
+          "stage": "make",
+          "position": [
+            "make",
+            "*"
+          ],
+          "liveness": "retired"
+        }
+      ],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "effort": 3
+          }
+        }
+      }
+    },
+    "extra": {
+      "needs": [],
+      "workers": "one",
+      "tools": {},
+      "description": "An extra stage."
+    }
+  },
+  "transitions": [
+    {
+      "from": "review",
+      "to": "make",
+      "description": "Approving the review moves it on."
+    },
+    {
+      "from": "make",
+      "to": "hold",
+      "description": "Parked."
+    },
+    {
+      "from": "hold",
+      "to": "review",
+      "on": "reject_plan",
+      "description": "Back to review."
+    }
+  ]
+}
