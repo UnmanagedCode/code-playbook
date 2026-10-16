@@ -11,6 +11,7 @@ import { CSP } from '../src/securityHeaders.js';
 import { checkBuilt } from '../src/static.js';
 import { startFakeConductor } from './fixtures/fakeConductor.mjs';
 import { rawRequest, sampleDefinition } from './helpers.mjs';
+import { FRONTEND, headTags } from './_frontendFiles.mjs';
 
 const JS = './assets/index-Ab_9-x.js';
 const CSS = './assets/index-Cd1.css';
@@ -178,6 +179,20 @@ test('every response carries the CSP and nosniff', async (t) => {
   assert.equal(r500.status, 500, r500.text);
   assert.equal(r500.json.code, 'INTERNAL');
   assertHeaders(r500, '500');
+});
+
+// Invariant: the source page loads the bridge first as a blocking classic script, then the host theme, then
+// theme-init.js; every other ref is relative (so it resolves under /plugins/code-playbook/ and at / alike).
+test('frontend/index.html: host URLs first, in order, everything else relative', async () => {
+  const html = await fs.readFile(path.join(FRONTEND, 'index.html'), 'utf8');
+  const tags = headTags(html).filter((t) => t.tag === 'script' || (t.tag === 'link' && /rel="stylesheet"/.test(t.attrs)));
+  const ref = (t) => t.attrs.match(/(?:src|href)="([^"]+)"/)[1];
+  assert.deepEqual(tags.slice(0, 3).map(ref), ['/pluginBridge.js', '/pluginTheme.css', 'theme-init.js']);
+  assert.doesNotMatch(tags[0].attrs, /\b(?:defer|async|type=)/, 'the bridge is a blocking classic script');
+  const module = tags.find((t) => /type="module"/.test(t.attrs));
+  assert.equal(ref(module), './src/main.tsx');
+  const rootRelative = [...html.matchAll(/\s(?:src|href)="(\/[^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(rootRelative, ['/pluginBridge.js', '/pluginTheme.css']);
 });
 
 // A raw request with an exact body (rawRequest always JSON-encodes its body).

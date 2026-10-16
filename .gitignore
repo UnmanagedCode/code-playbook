@@ -1,2 +1,4 @@
-node_modules
+node_modules/
+frontend/dist/
+package-lock.json
 harness/playwright/screenshots/
