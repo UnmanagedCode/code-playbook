@@ -1,4 +1,4 @@
-// Pins the wire format to this plugin's backend (byte-identical to the pre-port UI's) and how failures
+// Pins the wire format to this plugin's backend (the saved bytes depend on it) and how failures
 // become ApiError.
 import { afterEach, expect, test, vi } from 'vitest';
 import { ApiError, playbooksApi } from './api';

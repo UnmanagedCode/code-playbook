@@ -1,5 +1,5 @@
-// The server half of the editor round-trip: a body the pre-port UI sent (the
-// golden file, re-serialised as JSON.stringify does in the browser) is
+// The server half of the editor round-trip: a golden body (the golden file,
+// re-serialised as JSON.stringify does in the browser) is
 // written byte for byte as the golden file. The UI half is
 // frontend/src/components/editor/roundTrip.test.tsx.
 import test from 'node:test';

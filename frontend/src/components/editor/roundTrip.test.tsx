@@ -1,5 +1,5 @@
 // The UI half of the editor round-trip: each edit script (tests/fixtures/edit-scripts.json), played through
-// the React UI by accessible name, saves exactly the body the pre-port UI sent for it — the golden file in
+// the React UI by accessible name, saves exactly the golden body for it — the file in
 // tests/fixtures/saved/, as JSON.stringify writes it. tests/roundTrip.test.mjs pins the server half.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -94,7 +94,7 @@ async function start(script: Script) {
 
 describe('each edit script saves the golden body', () => {
   for (const [name, script] of Object.entries(scripts)) {
-    // Invariant: the PUT the React editor sends for this script is byte-identical to the pre-port UI's.
+    // Invariant: the PUT the editor sends for this script is byte-identical to the golden body.
     test(name, async () => {
       const { calls } = fakeApi();
       await start(script);

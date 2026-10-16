@@ -252,7 +252,7 @@ try {
     assert.ok(!(await saveButton(page).isDisabled()), 'savable once named');
     await shot(page, '10b-new-playbook-named', true);
 
-    // 11. bytes: the duplicate-mine edit script saves exactly the pre-port UI's file
+    // 11. bytes: the duplicate-mine edit script saves exactly its golden file
     const scripts = JSON.parse(await fs.readFile(path.join(FIXTURES, 'edit-scripts.json'), 'utf8'));
     const script = scripts['duplicate-mine'];
     await page.goto(`${srv.url}/?playbook=mine`);

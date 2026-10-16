@@ -1,4 +1,4 @@
-// @ts-nocheck — ported verbatim from the node:test suite: the assertion bodies stay untyped so they stay identical.
+// @ts-nocheck — the assertion bodies are untyped JS on purpose: fixtures and helpers stay loosely shaped.
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { loadFixtures } from '../../../tests/fixtures/fakeConductor.mjs';
