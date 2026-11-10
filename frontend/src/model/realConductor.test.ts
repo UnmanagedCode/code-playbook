@@ -71,10 +71,14 @@ describe.skipIf(!enabled)('workerToolNotes agrees with the live validator', () =
   }
 });
 
-// Invariant: every golden saved file (wt-release included) is accepted by the live validator.
+// Goldens that cc refuses by design: rt-mine.json is gesture coverage (duplicate-mine) that deliberately
+// reaches states cc rejects, so only its bytes are pinned, not its validity.
+const CC_REFUSED_GOLDENS = ['rt-mine.json'];
+
+// Invariant: every golden saved file not on CC_REFUSED_GOLDENS (wt-release included) is accepted by the live validator.
 describe.skipIf(!enabled)('every golden validates against the live cc', async () => {
   const dir = path.resolve(__dirname, '../../../tests/fixtures/saved');
-  for (const name of await fs.readdir(dir)) {
+  for (const name of (await fs.readdir(dir)).filter((n) => !CC_REFUSED_GOLDENS.includes(n))) {
     test(name, async () => assert.deepEqual(await validate(JSON.parse(await fs.readFile(path.join(dir, name), 'utf8'))), { ok: true }));
   }
 });
