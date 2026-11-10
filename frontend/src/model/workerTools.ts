@@ -16,18 +16,15 @@ export function patternKind(p: string): PatternKind {
   return p.includes(WILDCARD) ? 'wildcard' : 'exact';
 }
 
-/** Each duplicated pattern once, in first-seen order. Case-sensitive. */
+/** Each duplicated pattern once, in the order its first copy appears. Case-sensitive. */
 export function duplicatePatterns(rows: WorkerToolRow[]): string[] {
-  const seen = new Set<string>();
-  const dup: string[] = [];
-  for (const r of rows) {
-    if (seen.has(r.pattern) && !dup.includes(r.pattern)) dup.push(r.pattern);
-    seen.add(r.pattern);
-  }
-  return dup;
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(r.pattern, (counts.get(r.pattern) ?? 0) + 1);
+  return [...counts].filter(([, n]) => n > 1).map(([p]) => p);
 }
 
-export function workerToolNotes(rows: WorkerToolRow[], i: number): WorkerToolNote[] {
+/** `duplicates` is the stage's duplicatePatterns as a Set; a caller notes every row of a stage computes it once. */
+export function workerToolNotes(rows: WorkerToolRow[], i: number, duplicates: ReadonlySet<string> = new Set(duplicatePatterns(rows))): WorkerToolNote[] {
   const r = rows[i];
   const notes: WorkerToolNote[] = [];
   if (!WORKER_TOOL_PATTERN_RE.test(r.pattern)) {
@@ -36,7 +33,7 @@ export function workerToolNotes(rows: WorkerToolRow[], i: number): WorkerToolNot
   if (r.policy === 'deny' && WORKER_TOOLS_EXEMPT.includes(r.pattern)) {
     notes.push({ code: 'exempt-deny', message: `${WORKER_TOOLS_EXEMPT.join(' and ')} are always allowed` });
   }
-  if (duplicatePatterns(rows).includes(r.pattern)) {
+  if (duplicates.has(r.pattern)) {
     notes.push({ code: 'duplicate', message: 'this pattern is listed more than once in this stage' });
   }
   return notes;

@@ -284,7 +284,7 @@ test('an invalid worker-tool pattern is flagged but never gates Save', async () 
   await u.paste('Bash(git:*)');
   await settle();
   expect(patternOf(row).getAttribute('aria-invalid')).toBe('true');
-  expect(describedText(patternOf(row))).not.toBe('');
+  expect(describedText(patternOf(row))).toContain("use letters, digits, '_', '-' and '*'");
   expect(status()).toBe('Valid — ready to save');
   expect(saveButton().disabled).toBe(false);
   await u.clear(patternOf(row));
@@ -327,6 +327,7 @@ test('denying AskUserQuestion is flagged until switched to allow', async () => {
   await u.click(patternOf(row));
   await u.paste('AskUserQuestion');
   expect(patternOf(row).getAttribute('aria-invalid')).toBe('true');
+  expect(describedText(patternOf(row))).toContain('are always allowed');
   await u.selectOptions(within(row).getByRole('combobox', { name: 'Policy' }), 'allow');
   expect(patternOf(row).getAttribute('aria-invalid')).toBeNull();
 });

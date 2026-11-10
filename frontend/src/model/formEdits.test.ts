@@ -147,3 +147,28 @@ test('worker tools: add appends {"", deny}; set pattern/policy and remove touch 
   for (const s of h.stages.filter((x) => x.name !== 'build')) expect(s.workerTools).toEqual([]);
   expect(h.stages.map((s) => s.tools)).toEqual(base.stages.map((s) => s.tools));
 });
+
+// Invariant: every worker-tool edit leaves its input form untouched (checked on a form that already has rows, so each edit has something to change).
+describe('worker-tool edits are pure', () => {
+  const withRows = () => {
+    const f = mine();
+    stage(f, 'build').workerTools = [{ pattern: 'Read', policy: 'allow' }, { pattern: 'Bash', policy: 'deny' }];
+    return f;
+  };
+  const k = (f: Form) => key(f, 'build');
+  const cases: [string, (f: Form) => Form][] = [
+    ['addWorkerTool', (f) => E.addWorkerTool(f, k(f))],
+    ['setWorkerToolPattern', (f) => E.setWorkerToolPattern(f, k(f), 0, 'Glob')],
+    ['setWorkerToolPolicy', (f) => E.setWorkerToolPolicy(f, k(f), 0, 'deny')],
+    ['removeWorkerTool', (f) => E.removeWorkerTool(f, k(f), 1)],
+  ];
+  for (const [name, edit] of cases) {
+    test(name, () => {
+      const f = withRows();
+      const before = structuredClone(f);
+      const after = edit(f);
+      expect(f).toEqual(before);
+      expect(after).not.toEqual(before);
+    });
+  }
+});

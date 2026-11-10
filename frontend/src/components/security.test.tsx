@@ -69,6 +69,6 @@ test('the editor renders hostile content as values and text', async () => {
   const { container } = render(<App />);
   await screen.findByRole('heading', { name: `Edit ${id}` });
   const values = [...container.querySelectorAll('input, textarea')].map((e) => (e as HTMLInputElement).value);
-  for (const v of [id, detail.name, detail.description, stageName, `Stage ${H}`, JSON.stringify(H), `T ${H}`]) expect(values).toContain(v);
+  for (const v of [id, detail.name, detail.description, stageName, `Stage ${H}`, JSON.stringify(H), `T ${H}`, `mcp__${H}`]) expect(values).toContain(v);
   assertInert(container);
 });

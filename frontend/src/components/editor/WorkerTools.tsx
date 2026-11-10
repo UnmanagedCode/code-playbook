@@ -1,11 +1,11 @@
-import { useId } from 'react';
+import { useId, useMemo } from 'react';
 import { PlusIcon, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { WORKER_POLICY_OPTIONS, WORKER_TOOLS_HINT } from '@/model/editorModel';
 import { addWorkerTool, removeWorkerTool, setWorkerToolPattern, setWorkerToolPolicy } from '@/model/formEdits';
-import { patternKind, workerToolNotes } from '@/model/workerTools';
+import { duplicatePatterns, patternKind, workerToolNotes } from '@/model/workerTools';
 import type { FormStage, WorkerToolPolicy } from '@/model/types';
 import { Field } from './Field';
 import type { EditorApi } from './types';
@@ -15,11 +15,12 @@ const KIND_LABEL = { exact: undefined, wildcard: 'wildcard pattern', fallback: '
 /** The stage's worker tools: rows of pattern + policy. Notes are advisory; cc's validator gates Save. */
 export function WorkerTools({ ed, stage }: { ed: EditorApi; stage: FormStage }) {
   const k = stage.key;
+  const duplicates = useMemo(() => new Set(duplicatePatterns(stage.workerTools)), [stage.workerTools]);
   return (
     <div className="grid gap-2">
       <h4 className="text-sm font-semibold">Worker tools</h4>
       <p className="text-xs text-muted-foreground">{WORKER_TOOLS_HINT}</p>
-      {stage.workerTools.map((_, i) => <WorkerToolRow key={i} ed={ed} stage={stage} i={i} />)}
+      {stage.workerTools.map((_, i) => <WorkerToolRow key={i} ed={ed} stage={stage} i={i} duplicates={duplicates} />)}
       <Button type="button" variant="outline" size="sm" className="justify-self-start" ref={ed.register(`addworkertool:${k}`)}
         onClick={() => { ed.change((f) => addWorkerTool(f, k)); ed.focusNext(`wtpattern:${k}:${stage.workerTools.length}`); }}>
         <PlusIcon />Add worker tool
@@ -28,12 +29,12 @@ export function WorkerTools({ ed, stage }: { ed: EditorApi; stage: FormStage }) 
   );
 }
 
-function WorkerToolRow({ ed, stage, i }: { ed: EditorApi; stage: FormStage; i: number }) {
+function WorkerToolRow({ ed, stage, i, duplicates }: { ed: EditorApi; stage: FormStage; i: number; duplicates: ReadonlySet<string> }) {
   const k = stage.key;
   const row = stage.workerTools[i];
   const baseId = useId();
   const kind = KIND_LABEL[patternKind(row.pattern)];
-  const notes = workerToolNotes(stage.workerTools, i);
+  const notes = workerToolNotes(stage.workerTools, i, duplicates);
   const kindId = kind ? `${baseId}-kind` : undefined;
   const describedBy = [kindId, ...notes.map((n) => `${baseId}-${n.code}`)].filter(Boolean).join(' ') || undefined;
   return (

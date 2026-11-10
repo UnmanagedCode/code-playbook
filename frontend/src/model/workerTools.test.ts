@@ -1,5 +1,6 @@
 // Pins the client mirror of cc's worker-tools rules: kinds, per-row advisory notes, duplicates.
 import { describe, expect, test } from 'vitest';
+import { WORKER_TOOLS_HINT } from './editorModel';
 import { duplicatePatterns, patternKind, WORKER_TOOLS_EXEMPT, workerToolNotes } from './workerTools';
 import type { WorkerToolPolicy } from './types';
 
@@ -27,6 +28,8 @@ test('exempt-deny', () => {
     expect(codes(t, 'deny')).toContain('exempt-deny');
     expect(codes(t, 'allow')).not.toContain('exempt-deny');
   }
+  expect(codes('ExitPlanMode', 'deny')).toContain('exempt-deny');
+  expect(codes('ExitPlanMode', 'allow')).not.toContain('exempt-deny');
   expect(codes('AskUser*', 'deny')).not.toContain('exempt-deny');
   expect(codes('askuserquestion', 'deny')).not.toContain('exempt-deny');
 });
@@ -36,7 +39,15 @@ test('duplicatePatterns and the duplicate note', () => {
   expect(duplicatePatterns([row('Read'), row('Read')])).toEqual(['Read']);
   expect(duplicatePatterns([row('Read'), row('read')])).toEqual([]);
   expect(duplicatePatterns([row('B'), row('A'), row('B'), row('A'), row('B')])).toEqual(['B', 'A']);
+  expect(duplicatePatterns([row('A'), row('B'), row('B'), row('A')])).toEqual(['A', 'B']);
   expect(duplicatePatterns([row(''), row('')])).toEqual(['']);
   const rows = [row('Read'), row('Bash'), row('Read')];
   expect([0, 1, 2].map((i) => workerToolNotes(rows, i).some((n) => n.code === 'duplicate'))).toEqual([true, false, true]);
+});
+
+// Invariant: the exempt list is exactly cc's two tools, and the hint names both (the tests above must not shrink with the list).
+test('WORKER_TOOLS_EXEMPT is literally AskUserQuestion and ExitPlanMode, and the hint names both', () => {
+  expect(WORKER_TOOLS_EXEMPT).toEqual(['AskUserQuestion', 'ExitPlanMode']);
+  expect(WORKER_TOOLS_HINT).toContain('AskUserQuestion');
+  expect(WORKER_TOOLS_HINT).toContain('ExitPlanMode');
 });
