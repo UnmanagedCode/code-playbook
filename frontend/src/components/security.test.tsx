@@ -11,7 +11,7 @@ const id = `evil${H}`;
 const stageName = `s${H}`;
 const detail: PlaybookDetail = {
   id, name: `Name ${H}`, description: `Desc ${H}`, source: 'user', editable: true, entryStages: [stageName], liveWorkers: 0,
-  stages: { [stageName]: { needs: [{ stage: stageName, position: [stageName], liveness: 'live' }], workers: 'one', spawnable: true, description: `Stage ${H}`, tools: { spawn_instance: { pin: { mode: H } } } } },
+  stages: { [stageName]: { needs: [{ stage: stageName, position: [stageName], liveness: 'live' }], workers: 'one', spawnable: true, description: `Stage ${H}`, tools: { spawn_instance: { pin: { mode: H } } }, workerTools: { [`mcp__${H}`]: 'deny' } } },
   transitions: [{ from: stageName, to: stageName, via: 'send_prompt', description: `T ${H}` }],
 };
 const list: PlaybookList = {

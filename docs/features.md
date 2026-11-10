@@ -65,7 +65,9 @@ Both open the **id dialog**, then an in-memory draft (`?draft=1`; reloading a dr
   - description, with the hint: "Stage descriptions reach the conductor verbatim (its role prompt when this is the preferred playbook, and describe_playbook), so editing one changes what the conductor does.";
   - needs rows: anchor, position checkboxes (every stage plus "any stage (*)"), liveness `live | retired | any`;
   - tools: the `spawn_instance` row first (`not declared | deny | allow | pin`), with the hint that a stage is spawnable only when it is declared `allow` or `pin` and `*` never confers it. Then one row per declared tool, and **add tool…** offering the undeclared names from `governableTools` plus `*`;
-  - removing a need, tool, pin or transition moves focus to that section's Add control;
+  - worker tools (the worker's own tool calls, as opposed to Tools, which govern the conductor's calls on it): one row per pattern with a **Pattern** text input, a **Policy** `allow | deny` select and a remove button, plus **Add worker tool**, which appends a `deny` row (an unlisted tool is already allowed) and focuses its Pattern input; removing a row focuses Add worker tool. Each row shows the pattern's kind (`*` alone is the fallback pattern, any other pattern containing `*` a wildcard pattern, nothing for an exact name) as part of the input's accessible description;
+  - worker-tool notes are advisory and never gate Save: a pattern cc rejects (letters, digits, `_`, `-` and `*` only, non-empty) and a `deny` of exactly `AskUserQuestion` or `ExitPlanMode` get a row note and `aria-invalid`; cc's own verdict still decides Save, and its located error lands on the stage card;
+  - removing a need, tool, pin, worker tool or transition moves focus to that section's Add control;
   - `pin` is offered only for a tool whose `pinArgs` is non-empty (never `*`). A pin row picks one of that tool's `pinArgs` and takes a JSON value (`"text"`, `true`, `3`, `null`).
 - **Transitions**: from, to, via (`send_prompt (default — no on)` or any other governable tool), optional description.
 - An empty stage or transition description is omitted from the saved file.
@@ -74,7 +76,7 @@ Both open the **id dialog**, then an in-memory draft (`?draft=1`; reloading a dr
 
 - Every change is sent to cc's validate, debounced; a response for an older revision is discarded.
 - cc's errors are placed on the stage card or transition rows they name. Anything else, including an error naming a stage that no longer exists, goes to **Playbook errors**. No error is dropped.
-- Pin JSON that doesn't parse is the one error found locally, placed on its stage.
+- Local errors, placed on their stage: pin JSON that doesn't parse, and a worker-tool pattern listed twice in one stage (the saved map would keep only one). Each blocks Save and no validate request is sent for that revision.
 - The status line next to Save reads *Saving…*, *N stage rename(s) refused*, *N local error(s)*, *Validating…*, *Valid — ready to save*, *Valid, but the id is blocked* or *N error(s) from cc*.
 - **Save** (`canSave` in `frontend/src/model/saveGate.ts`) is enabled only when cc accepted the current revision, there are no local errors or refused stage renames, and the id isn't blocked. A 422 from save is placed like a validate response; any other failure is shown above the form.
 - After a save, the tab opens the saved playbook, or the welcome screen when cc doesn't list it, with "Saved `<id>`.json." shown until the next navigation. **Cancel** returns to the detail (edit) or to where the draft started.

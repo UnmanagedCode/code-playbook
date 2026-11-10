@@ -14,6 +14,12 @@
       "tools": {
         "spawn_instance": "allow"
       },
+      "workerTools": {
+        "*": "deny",
+        "Read": "allow",
+        "Grep": "allow",
+        "mcp__code-conductor__code-kanban__*": "allow"
+      },
       "description": "Gather the release notes.",
       "spawnable": true
     },
@@ -37,6 +43,7 @@
         "*": "allow",
         "kill_instance": "deny"
       },
+      "workerTools": {},
       "spawnable": true
     },
     "ship": {
@@ -45,6 +52,7 @@
       "tools": {
         "set_mode": "deny"
       },
+      "workerTools": {},
       "description": "Cut the release.",
       "spawnable": false
     }

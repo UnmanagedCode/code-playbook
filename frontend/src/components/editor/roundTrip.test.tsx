@@ -25,6 +25,7 @@ const group = (within_: HTMLElement, name: string) => within(within_).getByRole(
 const tool = (s: Step) => group(stage(s.stage), `Tool ${s.tool}`);
 const need = (s: Step) => group(stage(s.stage), `Need ${Number(s.index) + 1}`);
 const pinRow = (s: Step) => group(tool(s), `Pin ${Number(s.index) + 1}`);
+const workerTool = (s: Step) => group(stage(s.stage), `Worker tool ${Number(s.index) + 1}`);
 const transition = (i: unknown) => group(screen.getByRole('region', { name: 'Transitions' }), `Transition ${Number(i) + 1}`);
 const select = (el: HTMLElement, label: string, value: unknown) => u.selectOptions(within(el).getByRole('combobox', { name: label }), String(value));
 const click = (el: HTMLElement, name: string) => u.click(within(el).getByRole('button', { name }));
@@ -62,6 +63,10 @@ async function step(s: Step) {
     case 'removePin': return click(pinRow(s), 'Remove pin');
     case 'addTool': return select(stage(s.stage), 'Add tool', s.tool);
     case 'removeTool': return click(tool(s), `Remove tool ${s.tool}`);
+    case 'addWorkerTool': return click(stage(s.stage), 'Add worker tool');
+    case 'workerToolPattern': return fill(within(workerTool(s)).getByRole('textbox', { name: 'Pattern' }), s.value);
+    case 'workerToolPolicy': return select(workerTool(s), 'Policy', s.value);
+    case 'removeWorkerTool': return click(workerTool(s), 'Remove worker tool');
     case 'addTransition': return u.click(screen.getByRole('button', { name: 'Add transition' }));
     case 'transition':
       if (s.field === 'description') return fill(within(transition(s.index)).getByRole('textbox', { name: 'Description' }), s.value);
@@ -82,7 +87,7 @@ async function start(script: Script) {
     at(`?edit=${edit}`);
     render(<App />);
   } else {
-    at(duplicate ? `?playbook=${duplicate}` : '/');
+    at(duplicate ? `?playbook=${encodeURIComponent(duplicate)}` : '/');
     render(<App />);
     await u.click(await screen.findByRole('button', { name: duplicate ? 'Duplicate' : 'New playbook' }));
     const dialog = await screen.findByRole('dialog');

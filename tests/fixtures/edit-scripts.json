@@ -57,6 +57,22 @@
       { "op": "stageDescription", "stage": "extra", "value": "An extra stage." }
     ]
   },
+  "worker-tools-release": {
+    "start": { "duplicate": "acme/release", "id": "wt-release" },
+    "saved": "wt-release",
+    "steps": [
+      { "op": "workerToolPattern", "stage": "research", "index": 2, "value": "Glob" },
+      { "op": "workerToolPolicy", "stage": "research", "index": 3, "value": "deny" },
+      { "op": "removeWorkerTool", "stage": "research", "index": 1 },
+      { "op": "addWorkerTool", "stage": "ship" },
+      { "op": "workerToolPattern", "stage": "ship", "index": 0, "value": "Bash" },
+      { "op": "addWorkerTool", "stage": "ship" },
+      { "op": "workerToolPattern", "stage": "ship", "index": 1, "value": "mcp__code-conductor__*" },
+      { "op": "workerToolPolicy", "stage": "ship", "index": 1, "value": "allow" },
+      { "op": "addWorkerTool", "stage": "plan" },
+      { "op": "removeWorkerTool", "stage": "plan", "index": 0 }
+    ]
+  },
   "rename-mine": {
     "start": { "edit": "mine" },
     "saved": "mine-2",

@@ -1,0 +1,63 @@
+{
+  "id": "wt-release",
+  "name": "Acme release",
+  "description": "Research, plan, ship.",
+  "entryStages": [
+    "research"
+  ],
+  "stages": {
+    "research": {
+      "needs": [],
+      "workers": "many",
+      "tools": {
+        "spawn_instance": "allow"
+      },
+      "workerTools": {
+        "*": "deny",
+        "Glob": "allow",
+        "mcp__code-conductor__code-kanban__*": "deny"
+      },
+      "description": "Gather the release notes."
+    },
+    "plan": {
+      "needs": [
+        {
+          "stage": "research",
+          "position": [
+            "research"
+          ],
+          "liveness": "live"
+        }
+      ],
+      "workers": "one",
+      "tools": {
+        "spawn_instance": {
+          "pin": {
+            "model": "planner"
+          }
+        },
+        "*": "allow",
+        "kill_instance": "deny"
+      }
+    },
+    "ship": {
+      "needs": [],
+      "workers": "one",
+      "tools": {
+        "set_mode": "deny"
+      },
+      "workerTools": {
+        "Bash": "deny",
+        "mcp__code-conductor__*": "allow"
+      },
+      "description": "Cut the release."
+    }
+  },
+  "transitions": [
+    {
+      "from": "plan",
+      "to": "ship",
+      "on": "approve_plan"
+    }
+  ]
+}

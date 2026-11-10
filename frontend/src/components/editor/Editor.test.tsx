@@ -265,3 +265,97 @@ test('the remove-stage confirm lists a repeated impact line without a console er
   expect(errors).not.toHaveBeenCalled();
   errors.mockRestore();
 });
+
+const addWorkerTool = async (u: ReturnType<typeof user>, stageName = 'build') => {
+  await u.click(within(stage(stageName)).getByRole('button', { name: 'Add worker tool' }));
+  const rows = within(stage(stageName)).getAllByRole('group', { name: /^Worker tool \d+$/ });
+  return rows[rows.length - 1];
+};
+const describedText = (el: HTMLElement) => (el.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean).map((id) => document.getElementById(id)?.textContent ?? '').join(' ');
+const patternOf = (row: HTMLElement) => within(row).getByRole('textbox', { name: 'Pattern' });
+
+// Invariant: worker-tool notes are advisory: the row is flagged and described, Save stays enabled once cc accepts, and fixing the pattern clears both.
+test('an invalid worker-tool pattern is flagged but never gates Save', async () => {
+  fakeApi();
+  renderEditor();
+  const u = user();
+  const row = await addWorkerTool(u);
+  await u.click(patternOf(row));
+  await u.paste('Bash(git:*)');
+  await settle();
+  expect(patternOf(row).getAttribute('aria-invalid')).toBe('true');
+  expect(describedText(patternOf(row))).not.toBe('');
+  expect(status()).toBe('Valid — ready to save');
+  expect(saveButton().disabled).toBe(false);
+  await u.clear(patternOf(row));
+  await u.paste('Bash');
+  await settle();
+  expect(patternOf(row).getAttribute('aria-invalid')).toBeNull();
+  expect(patternOf(row).getAttribute('aria-describedby')).toBeNull();
+});
+
+// Invariant: a pattern listed twice in a stage is a local error: Save disabled, no validate request for that revision; changing a copy re-enables Save.
+test('a duplicate worker-tool pattern blocks Save locally without asking cc', async () => {
+  const { calls } = fakeApi();
+  renderEditor();
+  const u = user();
+  await settle();
+  for (let i = 0; i < 2; i++) {
+    const row = await addWorkerTool(u);
+    await u.click(patternOf(row));
+    await u.paste('Read');
+  }
+  const before = validates(calls);
+  await settle();
+  expect(status()).toBe('1 local error');
+  expect(saveButton().disabled).toBe(true);
+  expect(validates(calls)).toBe(before);
+  const rows = within(stage('build')).getAllByRole('group', { name: /^Worker tool \d+$/ });
+  await u.clear(patternOf(rows[1]));
+  await u.paste('Glob');
+  await settle();
+  expect(status()).toBe('Valid — ready to save');
+  expect(saveButton().disabled).toBe(false);
+});
+
+// Invariant: denying an always-allowed tool by exact name is flagged; allowing it clears the flag.
+test('denying AskUserQuestion is flagged until switched to allow', async () => {
+  fakeApi();
+  renderEditor();
+  const u = user();
+  const row = await addWorkerTool(u);
+  await u.click(patternOf(row));
+  await u.paste('AskUserQuestion');
+  expect(patternOf(row).getAttribute('aria-invalid')).toBe('true');
+  await u.selectOptions(within(row).getByRole('combobox', { name: 'Policy' }), 'allow');
+  expect(patternOf(row).getAttribute('aria-invalid')).toBeNull();
+});
+
+// Invariant: the pattern kind is part of the input's accessible description: fallback for *, wildcard for other *, nothing for an exact name.
+test('the pattern kind is in the accessible description', async () => {
+  fakeApi();
+  renderEditor();
+  const u = user();
+  const row = await addWorkerTool(u);
+  const input = patternOf(row);
+  const type = async (v: string) => { await u.clear(input); await u.paste(v); };
+  await u.click(input);
+  await u.paste('*');
+  expect(input.getAttribute('aria-describedby')).toBeTruthy();
+  expect(describedText(input)).toMatch(/fallback/);
+  await type('Bash*');
+  expect(describedText(input)).toMatch(/wildcard/);
+  await type('Bash');
+  expect(input.getAttribute('aria-describedby')).toBeNull();
+});
+
+// Invariant: Add worker tool hands focus to the new Pattern input; Remove worker tool hands it back to Add.
+test('worker-tool focus: Add → new pattern input, Remove → Add button', async () => {
+  fakeApi();
+  renderEditor();
+  const u = user();
+  const row = await addWorkerTool(u);
+  expect(document.activeElement).toBe(patternOf(row));
+  await u.click(within(row).getByRole('button', { name: 'Remove worker tool' }));
+  expect(document.activeElement).toBe(within(stage('build')).getByRole('button', { name: 'Add worker tool' }));
+});

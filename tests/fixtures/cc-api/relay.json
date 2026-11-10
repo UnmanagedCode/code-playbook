@@ -22,6 +22,7 @@
         "set_mode": "deny",
         "approve_plan": "deny"
       },
+      "workerTools": {},
       "description": "Spawn and brief a plan worker; on its wake reject with feedback, answer its question, or abandon. There is no approving it into implement — this planner never writes code, and the handoff to one that does is yours to make. On a good one, leave it silent until landing: later stages forward its plan out of it, and a further turn to it displaces the plan from that window.",
       "spawnable": true
     },
@@ -44,6 +45,7 @@
         },
         "set_mode": "deny"
       },
+      "workerTools": {},
       "description": "A fresh worker, not the planner — it starts with no context, so hand it the approved plan itself, never a paraphrase: spawn it, then `send_prompt({forward})` the planner's output into it. Put it on the planner's worktree: one branch stays one merge unit, and it inherits the base the plan was written against.",
       "spawnable": true
     },
@@ -66,6 +68,7 @@
           }
         }
       },
+      "workerTools": {},
       "description": "Spawn an adversarial reviewer onto the implementer's worktree, briefed to inspect only — never edit, stage or commit — to default to skepticism, and to answer `REVIEW_CLEAN` or a findings list. Forward it the same plan the implementer got: what was approved is the bar, not your brief. Run several at once when the work deserves more than one lens (correctness, security, test coverage), each briefed to its own; give every one of them the same bar. Never prompt a reviewer and the implementer in the same turn: they share one worktree. Relay only the findings worth fixing back to the implementer, then send the same reviewers back at its next wake. You arbitrate each round — worth fixing → another round, else land; escalate only on a call you cannot resolve.",
       "spawnable": true
     }

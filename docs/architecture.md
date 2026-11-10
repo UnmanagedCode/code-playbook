@@ -34,9 +34,10 @@
 | `src/components/MessagePanel.tsx`, `BackButton.tsx`, `AppHeader.tsx` | messages, the phone-only Back, the header |
 | `src/components/ErrorBoundary.tsx` | a render failure shows a fallback instead of unmounting the page; reset by `resetKey`; `onError` runs once per caught error. Wraps the list pane (reset per list load), the main pane (reset per navigation), the stage graph (reset per detail), and each dialog on its own: a dialog that throws is closed by its `onError` (the id request resolves to nothing, the confirm is dismissed), its message stays until that dialog is next opened, and the other dialog is unaffected |
 | `src/components/editor/useEditor.ts` | the editor's state machine: debounced validate, stale verdicts dropped, target lookup for the drift warning, save, stage-name drafts |
-| `src/components/editor/Editor.tsx`, `StageCard.tsx`, `NeedsRow.tsx`, `ToolRow.tsx`, `TransitionRow.tsx`, `Field.tsx`, `ErrorList.tsx` | the editor's controls; every edit goes through `formEdits` |
+| `src/components/editor/Editor.tsx`, `StageCard.tsx`, `NeedsRow.tsx`, `ToolRow.tsx`, `WorkerTools.tsx`, `TransitionRow.tsx`, `Field.tsx`, `ErrorList.tsx` | the editor's controls; every edit goes through `formEdits` |
 | `src/model/formModel.ts` | **pure** form state and transformations |
 | `src/model/formEdits.ts` | **pure** one function per editor gesture: `(form, …) → new form` |
+| `src/model/workerTools.ts` | **pure** the client mirror of cc's `validateWorkerTools` (pattern regex, exempt tools, pattern kind, duplicate patterns, per-row notes); `realConductor.test.ts` is its drift guard |
 | `src/model/editorModel.ts` | **pure** status text and tone, notices, hints, option lists |
 | `src/model/listModel.ts` | **pure** list grouping, load-error groups, the viewer's derived text |
 | `src/model/graphLayout.ts` | **pure** layered layout |
@@ -73,7 +74,10 @@ cc owns every rule about playbook content and ids. This plugin checks only:
 - `body.id` equals the path id;
 - `takenIds` notices (`idNotices`);
 - pin JSON parses (without a parse there is no definition to validate);
-- a renamed stage doesn't collide with another stage's name (object keys).
+- a renamed stage doesn't collide with another stage's name (object keys);
+- no worker-tool pattern is listed twice in one stage (object keys; a local error, no validate request).
+
+The other worker-tool rules (`workerToolNotes`: pattern regex, deny of an exempt tool) are advisory row notes mirrored from cc, never a gate; `model/realConductor.test.ts` asserts live that cc refuses a draft iff a note is raised.
 
 Nothing is written without cc's `ok:true` for that exact body.
 
@@ -82,6 +86,7 @@ Nothing is written without cc's `ok:true` for that exact body.
 - A form stage has a stable `key` (card identity survives renames).
 - `entryStages` is an ordered list; toggling appends.
 - Tools are rows `{tool, policy, pin:[{arg, json}]}`, so "undeclared" and `"deny"` stay distinct.
+- Worker tools are rows `{pattern, policy: 'allow'|'deny'}` in map order; a detail without the key loads as no rows.
 - `formFromDetail` / `definitionFromForm` implement the mapping in [protocol.md](protocol.md#detail--definition). `definitionFromForm` answers `{definition}` or `{localErrors}`.
 - `renameStage` and `removeStage` cascade over entry stages, needs anchors, positions and transitions by exact name.
 - `placeErrors` buckets located errors to stage keys, transition row indexes, or the playbook panel.
@@ -117,14 +122,15 @@ Nothing is written without cc's `ok:true` for that exact body.
 
 | File | Covers |
 |---|---|
-| `model/formModel.test.ts` | lossless round-trip over every fixture, the via and description rules, deny vs undeclared, entry order, pin JSON, rename/remove cascades (and a blank rename refused), duplicate, the New playbook seed (refused blank, accepted once named), `idNotices`, `placeErrors` |
+| `model/workerTools.test.ts` | pattern kinds, the pattern-invalid and exempt-deny notes (accepted and flagged inputs), duplicate patterns |
+| `model/formModel.test.ts` | lossless round-trip over every fixture (workerTools order, `{}` and an absent key save no key, duplicate patterns are local errors), the via and description rules, deny vs undeclared, entry order, pin JSON, rename/remove cascades (and a blank rename refused), duplicate, the New playbook seed (refused blank, accepted once named), `idNotices`, `placeErrors` |
 | `model/graphLayout.test.ts` | per fixture: a node per stage, no overlaps, an edge per transition and per need, entry stages in layer 0, and (by sampling each path, every box including the edge's own endpoints, skipping only the samples at its ports) no edge inside a box; each label clear of the lines its rule guarantees (its own pair's curves, plus every routed lane for a self-loop or routed label) and no label backing over any line's start or arrowhead; longest-path layering; cycles; a synthetic graph with same-layer, layer-skipping and back edges, and same-layer bows clearing the row band by more than half a box; a routed edge whose runs share one gap; a transition plus needs between one pair; another pair's curve and a back-edge lane passing behind a forward label. Every `labelBox` coordinate must be finite and inside the canvas |
 | `model/saveGate.test.ts` | Save enabled only for the accepted current revision; a refused rename blocks it while its stage exists |
 | `model/wording.test.ts` | the live-worker sentences for a count of 1, many and unknown |
 | `model/formEdits.test.ts` | each gesture's exact effect, and that every edit leaves its input unchanged |
 | `model/editorModel.test.ts` | every status text and tone, the notices, the option lists |
 | `model/listModel.test.ts` | group order, the empty User group, load-error groups, list error text, viewer text |
-| `model/realConductor.test.ts` | skipped unless `RUN_REAL_CC=1` and `CONDUCTOR_URL`: live contract shape, every live playbook round-tripped through cc's real validator, the New playbook seed |
+| `model/realConductor.test.ts` | skipped unless `RUN_REAL_CC=1` and `CONDUCTOR_URL`: live contract shape, every live playbook round-tripped through cc's real validator, the New playbook seed, the `workerToolNotes` agreement table, every golden in `tests/fixtures/saved/` accepted |
 | `lib/route.test.ts`, `lib/api.test.ts`, `themeInit.test.ts` | routes, no hash, one history entry per navigation; the exact wire format, `ApiError`s, a `/`-led path and every traversal id refused before any request; standalone theme follows the OS, embedded does nothing |
 | `components/App.test.tsx` | list skeleton then groups, list 404, selection, read-only edit route, a reloaded draft URL, Delete (confirm, DELETE, flash) and its failure, Delete file only for a user file, stale detail dropped, a traversal id refused without a request, a throwing graph, detail, list or dialog contained by its error boundary (the crash screen's Back going home, the list pane recovering on the next good load, a throwing id dialog closed while Delete's confirm still works and Duplicate opens again once the data is good), a save opening the saved detail with the flash, the flash cleared by the next navigation, `release-copy` for `acme/release` |
 | `components/ConfirmDialog.test.tsx` | Escape and Cancel close the confirm without confirming and return focus to the opener; confirming runs the action |
@@ -132,13 +138,13 @@ Nothing is written without cc's `ok:true` for that exact body.
 | `components/StageGraph.test.tsx` | nodes and edges, click/Enter/Space, no content-derived attributes |
 | `components/security.test.tsx` | hostile content renders as text in the detail, list and editor: no loading, linking, submitting or styling element, no handler attribute, SVG only from icons and the graph, `style` only on Radix's checkbox indicator with Radix's value |
 | `components/PlaybookDetail.test.tsx` | from the fixtures: the header's entry-stage chips, entry and spawnable badges per stage, the read-only note (absent on an editable playbook) and actions per source, the graph boundary reset by the next detail, the needs list, tools rows (or the single empty-tools row) and transitions rows |
-| `components/editor/Editor.test.tsx` | (fake timers) debounce, stale verdicts, the Save gate, 422 and 500 on save, an edit clearing a save failure, a repeated remove-stage impact line with no console error, `?from=`, drift and rename warnings, the remove-stage confirm, Enter commits a rename without saving |
+| `components/editor/Editor.test.tsx` | (fake timers) worker-tool notes (advisory, duplicate blocks Save with no validate, kind in the description, focus), debounce, stale verdicts, the Save gate, 422 and 500 on save, an edit clearing a save failure, a repeated remove-stage impact line with no console error, `?from=`, drift and rename warnings, the remove-stage confirm, Enter commits a rename without saving |
 | `components/editor/roundTrip.test.tsx` | the UI half of the round-trip: each edit script, played by accessible name, PUTs exactly the golden body |
 
 Fixtures:
-- `tests/fixtures/cc-api/`: the list (`playbooks.json`) and one detail per listed playbook (a plugin id's `/` is `__` in the filename). `mine.json` uses every field the validator admits.
+- `tests/fixtures/cc-api/`: the list (`playbooks.json`) and one detail per listed playbook (a plugin id's `/` is `__` in the filename). `mine.json` uses every field the validator admits; `acme__release.json` is the one fixture with an authored `workerTools` map.
 - `tests/fixtures/fakeConductor.mjs` (types: `fakeConductor.d.mts`): `startFakeConductor({validate, handle})` → `{url, calls, down, close}`; `calls` records each request's method, path, body and Content-Type. Like cc, validate refuses a non-JSON Content-Type with 400 `BODY_NOT_JSON`. `cannedValidate` mirrors cc's required-name and required-description rule (with cc's message text) and otherwise refuses only a stage named `bad`.
-- `tests/fixtures/edit-scripts.json`: the edit scripts (`duplicate-mine` uses every editor gesture; `rename-mine` saves with `?from=`; `new-fresh`), as op steps naming stages by their current name. `tests/fixtures/saved/<saved id>.json`: the golden file each script must save, byte for byte.
+- `tests/fixtures/edit-scripts.json`: the edit scripts (`duplicate-mine` uses every editor gesture; `worker-tools-release` duplicates `acme/release` and edits, adds and removes worker tools; `rename-mine` saves with `?from=`; `new-fresh`), as op steps naming stages by their current name. `tests/fixtures/saved/<saved id>.json`: the golden file each script must save, byte for byte.
 - `tests/fixtures/recipe-theme-inline.css`: a copy of the recipe's `@theme inline` block, so the theme guard runs without a cc checkout.
 - `tests/helpers.mjs`: `bootWithFake(t, …)` (server + fake + tmp `PROJECTS_ROOT`, torn down via `t.after`) and `rawRequest` (sends a path unnormalised, so `..` and `%2F` reach the server).
 - `tests/_frontendFiles.mjs`: `sourceFiles({tests})` and `headTags(html)` for the text guards.
@@ -149,7 +155,7 @@ Fixtures:
 `npm run harness` builds, then runs `harness/playwright/golden-path.mjs`:
 - `codePlaywright.mjs` resolves the shared `code-playwright` `browser.mjs` from `$CC_PROJECTS_ROOT/.plugins/`;
 - `boot.mjs` boots `server.js` with a sandboxed `PROJECTS_ROOT` via `bootServer`;
-- the golden path starts the fake cc in-process and asserts as it goes: the grouped list, the relay graph, a read-only plugin playbook, mine's same-row needs edge bowing above its row (control points above the boxes' top edge), the id-dialog notices, a canned error on a stage card, Save gating and refused renames, a save, the drift and rename warnings, New playbook blank then named; the `duplicate-mine` edit script saved byte-identical to its golden file; an OS light/dark flip that changes `<html>.dark` and the graph's and page's computed colours; keyboard paths (list, graph node → stage heading, dialog focus trap and return, editor Tab order); a list 500, an unreachable cc and the loading skeleton; hostile content; no console error beyond the host URLs' standalone 404s and no CSP violation; and the list, a detail and the editor at 390×844 with no horizontal overflow;
+- the golden path starts the fake cc in-process and asserts as it goes: the grouped list, the relay graph, a read-only plugin playbook, mine's same-row needs edge bowing above its row (control points above the boxes' top edge), the id-dialog notices, a canned error on a stage card, Save gating and refused renames, a save, the drift and rename warnings, New playbook blank then named; the `duplicate-mine` and `worker-tools-release` edit scripts saved byte-identical to their golden files; the worker-tool notes, focus and kind label in the mine editor; an OS light/dark flip that changes `<html>.dark` and the graph's and page's computed colours; keyboard paths (list, graph node → stage heading, dialog focus trap and return, editor Tab order); a list 500, an unreachable cc and the loading skeleton; hostile content; no console error beyond the host URLs' standalone 404s and no CSP violation; and the list, a detail and the editor at 390×844 with no horizontal overflow;
 - screenshots go to `harness/playwright/screenshots/` (git-ignored);
 - with `CONDUCTOR_URL` set, it uses that live cc and captures only the list and relay's detail.
 
@@ -172,4 +178,4 @@ rm -rf "$(dirname "$CC")"                         # the clone, after stopping th
 
 The scratch cc's rescan and enable regenerate this checkout's `CONVENTIONS.md` without the code-playwright fragment (its projects root has no code-playwright plugin): restore it with `git -C <this checkout> checkout -- CONVENTIONS.md` afterwards (cc's own repo tracks a `CONVENTIONS.md` too, so name the checkout), and never commit it.
 
-It checks the host URLs answer 200 and Geist loads; inside cc's shell the frame follows cc's theme (an OS flip under "system", and cc's own `<html>` class) with the graph repainting; a duplicate saves into the scratch store's overlay dir and is deleted again; the visit adds one joint history entry and Back leaves `#plugin/code-playbook`; no CSP violation.
+Its saved duplicate also gets a worker tool: an invalid pattern shows the live cc's stage error with the row note, and the saved overlay file and cc's detail both carry the map. It checks the host URLs answer 200 and Geist loads; inside cc's shell the frame follows cc's theme (an OS flip under "system", and cc's own `<html>` class) with the graph repainting; a duplicate saves into the scratch store's overlay dir and is deleted again; the visit adds one joint history entry and Back leaves `#plugin/code-playbook`; no CSP violation.

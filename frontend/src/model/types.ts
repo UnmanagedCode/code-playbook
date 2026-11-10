@@ -2,6 +2,8 @@
 
 export type Policy = 'allow' | 'deny' | { pin: Record<string, unknown> };
 
+export type WorkerToolPolicy = 'allow' | 'deny';
+
 export interface Need {
   stage: string;
   position: string[];
@@ -12,6 +14,8 @@ export interface Stage {
   needs: Need[];
   workers: string;
   tools: Record<string, Policy>;
+  /** Absent when cc does not implement workerTools. */
+  workerTools?: Record<string, WorkerToolPolicy>;
   description?: string;
   spawnable: boolean;
 }
@@ -82,7 +86,7 @@ export interface Definition {
   name: string;
   description: string;
   entryStages: string[];
-  stages: Record<string, { needs: Need[]; workers: string; tools: Record<string, Policy>; description?: string }>;
+  stages: Record<string, { needs: Need[]; workers: string; tools: Record<string, Policy>; workerTools?: Record<string, WorkerToolPolicy>; description?: string }>;
   transitions: { from: string; to: string; on?: string; description?: string }[];
 }
 
@@ -97,6 +101,11 @@ export interface ToolRow {
   pin: PinRow[];
 }
 
+export interface WorkerToolRow {
+  pattern: string;
+  policy: WorkerToolPolicy;
+}
+
 export interface FormStage {
   key: string;
   name: string;
@@ -104,6 +113,7 @@ export interface FormStage {
   description: string;
   needs: Need[];
   tools: ToolRow[];
+  workerTools: WorkerToolRow[];
 }
 
 export interface FormTransition {

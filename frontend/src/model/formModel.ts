@@ -4,10 +4,12 @@
 // Form: { id, name, description, entryStages: string[],
 //         stages: [{ key, name, workers, description,
 //                    needs: [{ stage, position: string[], liveness }],
-//                    tools: [{ tool, policy: 'allow'|'deny'|'pin', pin: [{ arg, json }] }] }],
+//                    tools: [{ tool, policy: 'allow'|'deny'|'pin', pin: [{ arg, json }] }],
+//                    workerTools: [{ pattern, policy: 'allow'|'deny' }] }],
 //         transitions: [{ from, to, via, description }] }
 // `key` is a stable per-card uid, so a renamed stage keeps its card.
 
+import { duplicatePatterns } from './workerTools';
 import type { Definition, Form, FormStage, IdNotices, LocatedError, PlacedErrors, PlaybookDetail, Policy, TakenIds, ToolRow } from './types';
 
 export const SEND_PROMPT = 'send_prompt';
@@ -25,7 +27,7 @@ function toolRow(tool: string, policy: Policy): ToolRow {
 }
 
 export function newStage(name: string): FormStage {
-  return { key: newKey(), name, workers: 'one', description: '', needs: [], tools: [] };
+  return { key: newKey(), name, workers: 'one', description: '', needs: [], tools: [], workerTools: [] };
 }
 
 export function formFromDetail(d: PlaybookDetail): Form {
@@ -41,13 +43,16 @@ export function formFromDetail(d: PlaybookDetail): Form {
       description: s.description ?? '',
       needs: s.needs.map((n) => ({ stage: n.stage, position: [...n.position], liveness: n.liveness })),
       tools: Object.entries(s.tools).map(([tool, p]) => toolRow(tool, p)),
+      // An external format: a cc without workerTools omits the key.
+      workerTools: Object.entries(s.workerTools ?? {}).map(([pattern, policy]) => ({ pattern, policy })),
     })),
     transitions: d.transitions.map((t) => ({ from: t.from, to: t.to, via: t.via, description: t.description ?? '' })),
   };
 }
 
-// → { definition } or { localErrors }. Unparseable pin JSON is the only local
-// error: without a parse there is no definition to hand to cc's validator.
+// → { definition } or { localErrors }. Unparseable pin JSON and a worker-tool
+// pattern listed twice in a stage are the local errors: without them there is
+// no definition to hand to cc's validator.
 export function definitionFromForm(form: Form): { definition: Definition; localErrors?: undefined } | { localErrors: LocatedError[]; definition?: undefined } {
   const localErrors: LocatedError[] = [];
   const stages: Definition['stages'] = {};
@@ -65,10 +70,14 @@ export function definitionFromForm(form: Form): { definition: Definition; localE
       }
       tools[row.tool] = { pin };
     }
+    for (const p of duplicatePatterns(s.workerTools)) {
+      localErrors.push({ message: `stage '${s.name}': workerTools lists '${p}' more than once`, stage: s.name, transition: null });
+    }
     stages[s.name] = {
       needs: s.needs.map((n) => ({ stage: n.stage, position: [...n.position], liveness: n.liveness })),
       workers: s.workers,
       tools,
+      ...(s.workerTools.length > 0 && { workerTools: Object.fromEntries(s.workerTools.map((r) => [r.pattern, r.policy])) }),
       ...(s.description !== '' && { description: s.description }),
     };
   }
