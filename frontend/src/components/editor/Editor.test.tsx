@@ -311,8 +311,17 @@ test('a duplicate worker-tool pattern blocks Save locally without asking cc', as
   expect(saveButton().disabled).toBe(true);
   expect(validates(calls)).toBe(before);
   const rows = within(stage('build')).getAllByRole('group', { name: /^Worker tool \d+$/ });
+  // Invariant: both copies are flagged and described by the duplicate note, and editing one pattern's text clears it on both.
+  for (const r of rows) {
+    expect(patternOf(r).getAttribute('aria-invalid')).toBe('true');
+    expect(describedText(patternOf(r))).toContain('listed more than once');
+  }
   await u.clear(patternOf(rows[1]));
   await u.paste('Glob');
+  for (const r of rows) {
+    expect(patternOf(r).getAttribute('aria-invalid')).toBeNull();
+    expect(describedText(patternOf(r))).not.toContain('listed more than once');
+  }
   await settle();
   expect(status()).toBe('Valid — ready to save');
   expect(saveButton().disabled).toBe(false);

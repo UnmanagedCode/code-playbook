@@ -106,7 +106,7 @@ The editor's saved definition is the detail with:
 - each transition's `via` written as `on`, or dropped when it is `send_prompt`;
 - `source`, `editable` and `liveWorkers` dropped;
 - empty stage and transition descriptions omitted;
-- an empty `workerTools` omitted; a non-empty one written after `tools` and before `description`, in row order except that integer-like patterns (e.g. `123`, which cc's pattern regex admits) sort first, as in any JS object or JSON. Order has no effect on resolution.
+- an empty `workerTools` omitted; a non-empty one written after `tools` and before `description`, in row order except that patterns that are array indices (e.g. `123`, which cc's pattern regex admits; `01` and `-1` are not) sort first, as in any JS object or JSON. Order has no effect on resolution.
 
 cc's defaults (`position:[anchor]`, `liveness:"live"`, `workers:"one"`) stay explicit; cc treats them as identical to an omitted key.
 

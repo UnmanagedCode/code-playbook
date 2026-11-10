@@ -40,6 +40,10 @@ test('duplicatePatterns and the duplicate note', () => {
   expect(duplicatePatterns([row('Read'), row('read')])).toEqual([]);
   expect(duplicatePatterns([row('B'), row('A'), row('B'), row('A'), row('B')])).toEqual(['B', 'A']);
   expect(duplicatePatterns([row('A'), row('B'), row('B'), row('A')])).toEqual(['A', 'B']);
+  // Invariant: first-seen order holds for array-index keys, which a plain object would reorder numerically.
+  expect(duplicatePatterns([row('2'), row('1'), row('2'), row('1')])).toEqual(['2', '1']);
+  // Invariant: keys that collide with Object.prototype members are detected as ordinary patterns.
+  expect(duplicatePatterns([row('__proto__'), row('Read'), row('__proto__'), row('constructor'), row('constructor')])).toEqual(['__proto__', 'constructor']);
   expect(duplicatePatterns([row(''), row('')])).toEqual(['']);
   const rows = [row('Read'), row('Bash'), row('Read')];
   expect([0, 1, 2].map((i) => workerToolNotes(rows, i).some((n) => n.code === 'duplicate'))).toEqual([true, false, true]);
@@ -50,4 +54,12 @@ test('WORKER_TOOLS_EXEMPT is literally AskUserQuestion and ExitPlanMode, and the
   expect(WORKER_TOOLS_EXEMPT).toEqual(['AskUserQuestion', 'ExitPlanMode']);
   expect(WORKER_TOOLS_HINT).toContain('AskUserQuestion');
   expect(WORKER_TOOLS_HINT).toContain('ExitPlanMode');
+});
+
+// Invariant: workerToolNotes honours the duplicate set it is handed (not one recomputed from the rows): a pattern in the set gets the note, one outside it does not.
+test('workerToolNotes uses an explicitly passed duplicate set', () => {
+  const rows = [row('Read'), row('Bash')];
+  expect(workerToolNotes(rows, 0, new Set(['Read'])).map((n) => n.code)).toEqual(['duplicate']);
+  expect(workerToolNotes(rows, 1, new Set(['Read'])).map((n) => n.code)).toEqual([]);
+  expect(workerToolNotes(rows, 0, new Set()).map((n) => n.code)).toEqual([]);
 });
