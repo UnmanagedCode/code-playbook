@@ -97,7 +97,7 @@ There is no SPA fallback: routes live in the query string, and cc's host URLs 40
 
 ## cc routes consumed
 
-`GET /api/playbooks`, `GET /api/playbooks/:id`, `POST /api/playbooks/validate`. Their shapes (`source`, `editable`, `takenIds`, `governableTools[].pinArgs`, `liveWorkers`, located `errors`, the `via` rule) are defined in cc's `docs/protocol.md`, subsection **REST — /api/playbooks**. `tests/contractShape.mjs` holds the key sets this plugin relies on.
+`GET /api/playbooks`, `GET /api/playbooks/:id`, `POST /api/playbooks/validate`. A detail's `stages.<name>.workerTools` (pattern → `allow | deny`, `{}` when unauthored) is defined in cc's `docs/protocol.md`, section **Worker tools (`workerTools`)**; the editor reads a missing key as `{}`. Their shapes (`source`, `editable`, `takenIds`, `governableTools[].pinArgs`, `liveWorkers`, located `errors`, the `via` rule) are defined in cc's `docs/protocol.md`, subsection **REST — /api/playbooks**. `tests/contractShape.mjs` holds the key sets this plugin relies on.
 
 ## Detail → definition
 
@@ -105,7 +105,8 @@ The editor's saved definition is the detail with:
 - `spawnable` dropped from every stage;
 - each transition's `via` written as `on`, or dropped when it is `send_prompt`;
 - `source`, `editable` and `liveWorkers` dropped;
-- empty stage and transition descriptions omitted.
+- empty stage and transition descriptions omitted;
+- an empty `workerTools` omitted; a non-empty one written after `tools` and before `description`, in row order except that patterns that are array indices (e.g. `123`, which cc's pattern regex admits; `01` and `-1` are not) sort first, as in any JS object or JSON. Order has no effect on resolution.
 
 cc's defaults (`position:[anchor]`, `liveness:"live"`, `workers:"one"`) stay explicit; cc treats them as identical to an omitted key.
 

@@ -11,7 +11,7 @@ const id = `evil${H}`;
 const stageName = `s${H}`;
 const detail: PlaybookDetail = {
   id, name: `Name ${H}`, description: `Desc ${H}`, source: 'user', editable: true, entryStages: [stageName], liveWorkers: 0,
-  stages: { [stageName]: { needs: [{ stage: stageName, position: [stageName], liveness: 'live' }], workers: 'one', spawnable: true, description: `Stage ${H}`, tools: { spawn_instance: { pin: { mode: H } } } } },
+  stages: { [stageName]: { needs: [{ stage: stageName, position: [stageName], liveness: 'live' }], workers: 'one', spawnable: true, description: `Stage ${H}`, tools: { spawn_instance: { pin: { mode: H } } }, workerTools: { [`mcp__${H}`]: 'deny' } } },
   transitions: [{ from: stageName, to: stageName, via: 'send_prompt', description: `T ${H}` }],
 };
 const list: PlaybookList = {
@@ -69,6 +69,6 @@ test('the editor renders hostile content as values and text', async () => {
   const { container } = render(<App />);
   await screen.findByRole('heading', { name: `Edit ${id}` });
   const values = [...container.querySelectorAll('input, textarea')].map((e) => (e as HTMLInputElement).value);
-  for (const v of [id, detail.name, detail.description, stageName, `Stage ${H}`, JSON.stringify(H), `T ${H}`]) expect(values).toContain(v);
+  for (const v of [id, detail.name, detail.description, stageName, `Stage ${H}`, JSON.stringify(H), `T ${H}`, `mcp__${H}`]) expect(values).toContain(v);
   assertInert(container);
 });

@@ -12,11 +12,18 @@ const { list, details } = await loadFixtures();
 // The contract's detail → definition mapping, written independently of
 // formModel: drop spawnable and the response-only fields, turn via into on
 // (dropped for send_prompt).
+// The documented mapping: an empty workerTools map is omitted; a non-empty one follows `tools`, in its order.
+function withWorkerTools(s: Record<string, unknown>, workerTools: object) {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(s)) { out[k] = v; if (k === 'tools') out.workerTools = workerTools; }
+  return out;
+}
+
 function expectedDefinition(d: PlaybookDetail) {
   const { source, editable, liveWorkers, stages, transitions, ...rest } = d;
   return {
     ...rest,
-    stages: Object.fromEntries(Object.entries(stages).map(([n, { spawnable, ...s }]) => [n, s])),
+    stages: Object.fromEntries(Object.entries(stages).map(([n, { spawnable, workerTools, ...s }]) => [n, Object.keys(workerTools ?? {}).length ? { ...withWorkerTools(s, workerTools!) } : s])),
     transitions: transitions.map(({ via, ...t }) => (via === 'send_prompt' ? t : { ...t, on: via })),
   };
 }
@@ -207,4 +214,39 @@ test('placeErrors: stage → its card, transition → matching rows, else the pl
   assert.deepEqual(placed.playbook.map((e) => e.message), ['c', 'd', 'e']);
   const count = placed.playbook.length + Object.values(placed.byStage).flat().length + Object.values(placed.byTransition).flat().length;
   assert.equal(count, errors.length);
+});
+
+// Invariant: a non-empty workerTools map loads and saves verbatim, in key order; {} and an absent key both load as no rows and save no key.
+test('workerTools: lossless in order; empty and absent both save no key', () => {
+  const src = details['acme/release'];
+  const out = def(formFromDetail(src));
+  assert.deepEqual(Object.keys(out.stages.research.workerTools!), Object.keys(src.stages.research.workerTools!));
+  assert.deepEqual(out.stages.research.workerTools, src.stages.research.workerTools);
+  assert.deepEqual(Object.keys(out.stages.research), ['needs', 'workers', 'tools', 'workerTools', 'description']);
+  const { workerTools: _drop, ...noKey } = src.stages.plan;
+  const form = formFromDetail({ ...src, stages: { ...src.stages, plan: noKey } });
+  assert.deepEqual(stageByName(form, 'plan').workerTools, []);
+  assert.deepEqual(stageByName(formFromDetail(src), 'plan').workerTools, []);
+  assert.equal('workerTools' in def(form).stages.plan, false);
+  assert.equal('workerTools' in def(formFromDetail(src)).stages.plan, false);
+});
+
+// Invariant: a pattern listed twice in one stage is a local error (no definition), one per pattern, located to the stage; distinct patterns build.
+test('workerTools: a duplicate pattern is a local error per pattern; distinct patterns build', () => {
+  const form = formFromDetail(details.mine);
+  const st = stageByName(form, 'build');
+  st.workerTools = [{ pattern: 'Read', policy: 'allow' }, { pattern: 'Read', policy: 'deny' }, { pattern: 'Bash', policy: 'deny' }, { pattern: 'Bash', policy: 'deny' }, { pattern: 'Bash', policy: 'deny' }];
+  const r = definitionFromForm(form);
+  assert.equal(r.definition, undefined);
+  assert.deepEqual(r.localErrors, [
+    { message: "stage 'build': workerTools lists 'Read' more than once", stage: 'build', transition: null },
+    { message: "stage 'build': workerTools lists 'Bash' more than once", stage: 'build', transition: null },
+  ]);
+  st.workerTools = [{ pattern: 'Read', policy: 'allow' }, { pattern: 'read', policy: 'deny' }];
+  assert.deepEqual(def(form).stages.build.workerTools, { Read: 'allow', read: 'deny' });
+});
+
+// Invariant: a new stage and the New playbook seed start with no worker tools.
+test('workerTools: new stages start empty', () => {
+  assert.deepEqual(newPlaybookForm('x').stages[0].workerTools, []);
 });

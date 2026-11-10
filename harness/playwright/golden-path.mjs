@@ -63,6 +63,7 @@ function interpreter(page) {
   const tool = (s) => group(stage(page, s.stage), `Tool ${s.tool}`);
   const need = (s) => group(stage(page, s.stage), `Need ${s.index + 1}`);
   const pinRow = (s) => group(tool(s), `Pin ${s.index + 1}`);
+  const workerTool = (s) => group(stage(page, s.stage), `Worker tool ${s.index + 1}`);
   const transition = (i) => group(page.getByRole('region', { name: 'Transitions', exact: true }), `Transition ${i + 1}`);
   const select = (scope, name, value) => scope.getByRole('combobox', { name, exact: true }).selectOption(String(value));
   const click = (scope, name) => scope.getByRole('button', { name, exact: true }).click();
@@ -90,6 +91,10 @@ function interpreter(page) {
       case 'removePin': return click(pinRow(s), 'Remove pin');
       case 'addTool': return select(stage(page, s.stage), 'Add tool', s.tool);
       case 'removeTool': return click(tool(s), `Remove tool ${s.tool}`);
+      case 'addWorkerTool': return click(stage(page, s.stage), 'Add worker tool');
+      case 'workerToolPattern': return workerTool(s).getByRole('textbox', { name: 'Pattern', exact: true }).fill(s.value);
+      case 'workerToolPolicy': return select(workerTool(s), 'Policy', s.value);
+      case 'removeWorkerTool': return click(workerTool(s), 'Remove worker tool');
       case 'addTransition': return click(page, 'Add transition');
       case 'transition':
         if (s.field === 'description') return transition(s.index).getByRole('textbox', { name: 'Description', exact: true }).fill(s.value);
@@ -263,22 +268,54 @@ try {
     assert.ok(!(await saveButton(page).isDisabled()), 'savable once named');
     await shot(page, '10b-new-playbook-named', true);
 
-    // 11. bytes: the duplicate-mine edit script saves exactly its golden file
+    // 11. bytes: the duplicate-mine and worker-tools-release edit scripts save exactly their golden files
     const scripts = JSON.parse(await fs.readFile(path.join(FIXTURES, 'edit-scripts.json'), 'utf8'));
-    const script = scripts['duplicate-mine'];
-    await page.goto(`${srv.url}/?playbook=mine`);
-    const dupDialog = await openDialogFor(page, page.getByRole('button', { name: 'Duplicate', exact: true }));
-    await dupDialog.getByRole('textbox', { name: 'Id' }).fill(script.start.id);
-    await dupDialog.getByRole('button', { name: 'Continue' }).click();
-    await page.getByRole('region', { name: 'Playbook' }).waitFor();
-    const run = interpreter(page);
-    for (const s of script.steps) await run(s);
-    await page.waitForSelector('[data-status]:has-text("Valid — ready to save")');
-    await shot(page, '11-round-trip-editor', true);
-    await saveButton(page).click();
-    await page.getByRole('heading', { name: `Saved ${script.saved}.json.` }).waitFor();
-    const golden = await fs.readFile(path.join(FIXTURES, 'saved', `${script.saved}.json`), 'utf8');
-    assert.equal(await fs.readFile(overlayFile(srv, script.saved), 'utf8'), golden, 'saved bytes equal the golden file');
+    for (const name of ['duplicate-mine', 'worker-tools-release']) {
+      const script = scripts[name];
+      await page.goto(`${srv.url}/?playbook=${encodeURIComponent(script.start.duplicate)}`);
+      const dupDialog = await openDialogFor(page, page.getByRole('button', { name: 'Duplicate', exact: true }));
+      await dupDialog.getByRole('textbox', { name: 'Id' }).fill(script.start.id);
+      await dupDialog.getByRole('button', { name: 'Continue' }).click();
+      await page.getByRole('region', { name: 'Playbook' }).waitFor();
+      const run = interpreter(page);
+      for (const s of script.steps) await run(s);
+      await page.waitForSelector('[data-status]:has-text("Valid — ready to save")');
+      await shot(page, name === 'duplicate-mine' ? '11-round-trip-editor' : '11b-worker-tools-editor', true);
+      await saveButton(page).click();
+      await page.getByRole('heading', { name: `Saved ${script.saved}.json.` }).waitFor();
+      const golden = await fs.readFile(path.join(FIXTURES, 'saved', `${script.saved}.json`), 'utf8');
+      assert.equal(await fs.readFile(overlayFile(srv, script.saved), 'utf8'), golden, `${name}: saved bytes equal the golden file`);
+    }
+
+    // 11c. worker-tool advisory notes in the mine editor (nothing saved)
+    await page.goto(`${srv.url}/?edit=mine`);
+    await settle(page);
+    const build = stage(page, 'build');
+    await build.getByRole('button', { name: 'Add worker tool' }).click();
+    const wtRow = build.getByRole('group', { name: 'Worker tool 1', exact: true });
+    const wtPattern = wtRow.getByRole('textbox', { name: 'Pattern', exact: true });
+    assert.equal(await activeLabel(page), 'Pattern', 'Add worker tool focuses the new pattern input');
+    await wtPattern.fill('Bash(git:*)');
+    await wtRow.getByText(/use letters, digits/).waitFor();
+    assert.equal(await wtPattern.getAttribute('aria-invalid'), 'true');
+    await wtPattern.fill('Bash*');
+    await wtRow.getByText(/wildcard pattern/).waitFor();
+    assert.equal(await wtRow.getByText(/use letters, digits/).count(), 0, 'the note is gone once the pattern is valid');
+    await wtPattern.fill('AskUserQuestion');
+    await wtRow.getByText(/always allowed/).waitFor();
+    await build.scrollIntoViewIfNeeded();
+    await build.getByRole('heading', { name: 'Worker tools' }).scrollIntoViewIfNeeded();
+    const scheme13 = async (c) => {
+      await page.emulateMedia({ colorScheme: c });
+      await page.waitForFunction((d) => document.documentElement.classList.contains('dark') === d, c === 'dark');
+    };
+    await scheme13('light');
+    await shot(page, '13-worker-tools-light');
+    await scheme13('dark');
+    await shot(page, '13-worker-tools-dark');
+    await scheme13('light');
+    await wtRow.getByRole('button', { name: 'Remove worker tool' }).click();
+    assert.equal(await activeLabel(page), 'Add worker tool', 'Remove hands focus to Add worker tool');
 
     // 12. theme: the page follows the OS standalone, live, and the graph's token colours flip with it
     await page.goto(`${srv.url}/?playbook=mine`);
@@ -400,6 +437,18 @@ try {
         await page.getByRole('button', { name: 'Cancel' }).click();
         await page.getByRole('button', { name: 'All playbooks' }).click();
         await entry(page, 'relay').waitFor();
+        // The worker-tools-release duplicate, long patterns included, also fits.
+        const wt = JSON.parse(await fs.readFile(path.join(FIXTURES, 'edit-scripts.json'), 'utf8'))['worker-tools-release'];
+        await page.goto(`${srv2.url}/?playbook=${encodeURIComponent(wt.start.duplicate)}`);
+        const wtDialog = await openDialogFor(page, page.getByRole('button', { name: 'Duplicate', exact: true }));
+        await wtDialog.getByRole('textbox', { name: 'Id' }).fill(wt.start.id);
+        await wtDialog.getByRole('button', { name: 'Continue' }).click();
+        await page.getByRole('region', { name: 'Playbook' }).waitFor();
+        const runWt = interpreter(page);
+        for (const st of wt.steps) await runWt(st);
+        await settle(page);
+        assert.ok(await noPageOverflow(page), 'worker-tools editor fits 390px');
+        await shot(page, '18c-mobile-worker-tools', true);
         assert.deepEqual(consoleErrors.bad, []);
       }, { headless: true, viewport: MOBILE });
     } finally {
@@ -423,7 +472,7 @@ async function hostile() {
   const { list } = await loadFixtures();
   const detail = {
     id, name: `Name ${H}`, description: `Desc ${H}`, source: 'user', editable: true, entryStages: [st], liveWorkers: 0,
-    stages: { [st]: { needs: [], workers: 'one', spawnable: true, description: `Stage ${H}`, tools: { spawn_instance: { pin: { mode: H } } } } },
+    stages: { [st]: { needs: [], workers: 'one', spawnable: true, description: `Stage ${H}`, tools: { spawn_instance: { pin: { mode: H } } }, workerTools: { [`mcp__${H}`]: 'deny' } } },
     transitions: [{ from: st, to: st, via: 'send_prompt', description: `T ${H}` }],
   };
   const hostileList = {

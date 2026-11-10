@@ -2,7 +2,7 @@
 // untouched. The mutations are the editor's; serialising the result is
 // formModel's definitionFromForm.
 import { newStage, SEND_PROMPT, SPAWN } from './formModel';
-import type { Form, FormStage, FormTransition } from './types';
+import type { Form, FormStage, FormTransition, WorkerToolPolicy } from './types';
 
 const clone = (form: Form): Form => structuredClone(form);
 const stageOf = (f: Form, key: string): FormStage => f.stages.find((x) => x.key === key)!;
@@ -98,3 +98,9 @@ export function removeTransition(form: Form, i: number): Form {
   f.transitions.splice(i, 1);
   return f;
 }
+
+/** A deny row: an unlisted tool is already allowed, so a fresh allow would do nothing. */
+export const addWorkerTool = (form: Form, key: string) => onStage(form, key, (st) => { st.workerTools.push({ pattern: '', policy: 'deny' }); });
+export const setWorkerToolPattern = (form: Form, key: string, i: number, value: string) => onStage(form, key, (st) => { st.workerTools[i].pattern = value; });
+export const setWorkerToolPolicy = (form: Form, key: string, i: number, value: WorkerToolPolicy) => onStage(form, key, (st) => { st.workerTools[i].policy = value; });
+export const removeWorkerTool = (form: Form, key: string, i: number) => onStage(form, key, (st) => { st.workerTools.splice(i, 1); });

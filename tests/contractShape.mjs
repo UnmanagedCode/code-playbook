@@ -7,7 +7,7 @@ const keys = (o) => Object.keys(o).sort();
 const LIST_KEYS = ['errors', 'governableTools', 'playbooks', 'takenIds'];
 const SUMMARY_KEYS = ['description', 'editable', 'entryStages', 'id', 'name', 'source', 'spawnableStages'];
 const DETAIL_KEYS = ['description', 'editable', 'entryStages', 'id', 'liveWorkers', 'name', 'source', 'stages', 'transitions'];
-const STAGE_REQUIRED = ['needs', 'spawnable', 'tools', 'workers'];
+const STAGE_REQUIRED = ['needs', 'spawnable', 'tools', 'workerTools', 'workers'];
 const NEEDS_KEYS = ['liveness', 'position', 'stage'];
 const TRANSITION_REQUIRED = ['from', 'to', 'via'];
 
@@ -35,6 +35,8 @@ export function assertDetailShape(d) {
   for (const [name, s] of Object.entries(d.stages)) {
     withOptional(s, STAGE_REQUIRED, 'description', `${d.id} stage ${name}`);
     assert.ok(['one', 'many'].includes(s.workers), `${d.id} stage ${name} workers`);
+    assert.ok(s.workerTools && typeof s.workerTools === 'object' && !Array.isArray(s.workerTools), `${d.id} stage ${name} workerTools must be an object`);
+    for (const [pattern, policy] of Object.entries(s.workerTools)) assert.ok(['allow', 'deny'].includes(policy), `${d.id} stage ${name} workerTools.${pattern}`);
     for (const n of s.needs) assert.deepEqual(keys(n), NEEDS_KEYS, `${d.id} stage ${name} needs`);
   }
   for (const t of d.transitions) withOptional(t, TRANSITION_REQUIRED, 'description', `${d.id} transition ${t.from}->${t.to}`);

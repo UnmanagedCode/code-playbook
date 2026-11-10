@@ -31,6 +31,8 @@ describe('every edit is pure: the input form is unchanged', () => {
     ['setPinJson', (f) => E.setPinJson(f, key(f, 'build'), 'spawn_instance', 0, '"x"')],
     ['removePin', (f) => E.removePin(f, key(f, 'build'), 'spawn_instance', 0)],
     ['addPin', (f) => E.addPin(f, key(f, 'build'), 'spawn_instance', pinArgsOf('spawn_instance'))],
+    ['addWorkerTool', (f) => E.addWorkerTool(f, key(f, 'hold'))],
+    ['setWorkerToolPattern', (f) => E.setWorkerToolPattern(E.addWorkerTool(f, key(f, 'hold')), key(f, 'hold'), 0, 'x')],
     ['addTransition', (f) => E.addTransition(f)],
     ['setTransitionField', (f) => E.setTransitionField(f, 0, 'via', 'send_prompt')],
     ['removeTransition', (f) => E.removeTransition(f, 0)],
@@ -129,4 +131,44 @@ test('transitions: add first → first via send_prompt; set a field; remove by i
   expect(E.addTransition(f).transitions.at(-1)).toEqual({ from: 'draft', to: 'draft', via: 'send_prompt', description: '' });
   expect(E.setTransitionField(f, 1, 'to', 'review').transitions[1]).toEqual({ from: 'build', to: 'review', via: 'send_prompt', description: '' });
   expect(E.removeTransition(f, 0).transitions.map((t) => `${t.from}->${t.to}`)).toEqual(['build->hold', 'hold->hold']);
+});
+
+// Invariant: each worker-tool gesture changes only its own row of only the given stage; Add appends a deny row.
+test('worker tools: add appends {"", deny}; set pattern/policy and remove touch only row i of the given stage', () => {
+  const base = mine();
+  const k = key(base, 'build');
+  const f = E.addWorkerTool(E.addWorkerTool(base, k), k);
+  expect(stage(f, 'build').workerTools).toEqual([{ pattern: '', policy: 'deny' }, { pattern: '', policy: 'deny' }]);
+  const g = E.setWorkerToolPattern(f, k, 1, 'Bash');
+  expect(stage(g, 'build').workerTools).toEqual([{ pattern: '', policy: 'deny' }, { pattern: 'Bash', policy: 'deny' }]);
+  const h = E.setWorkerToolPolicy(g, k, 1, 'allow');
+  expect(stage(h, 'build').workerTools).toEqual([{ pattern: '', policy: 'deny' }, { pattern: 'Bash', policy: 'allow' }]);
+  expect(stage(E.removeWorkerTool(h, k, 0), 'build').workerTools).toEqual([{ pattern: 'Bash', policy: 'allow' }]);
+  for (const s of h.stages.filter((x) => x.name !== 'build')) expect(s.workerTools).toEqual([]);
+  expect(h.stages.map((s) => s.tools)).toEqual(base.stages.map((s) => s.tools));
+});
+
+// Invariant: every worker-tool edit leaves its input form untouched (checked on a form that already has rows, so each edit has something to change).
+describe('worker-tool edits are pure', () => {
+  const withRows = () => {
+    const f = mine();
+    stage(f, 'build').workerTools = [{ pattern: 'Read', policy: 'allow' }, { pattern: 'Bash', policy: 'deny' }];
+    return f;
+  };
+  const k = (f: Form) => key(f, 'build');
+  const cases: [string, (f: Form) => Form][] = [
+    ['addWorkerTool', (f) => E.addWorkerTool(f, k(f))],
+    ['setWorkerToolPattern', (f) => E.setWorkerToolPattern(f, k(f), 0, 'Glob')],
+    ['setWorkerToolPolicy', (f) => E.setWorkerToolPolicy(f, k(f), 0, 'deny')],
+    ['removeWorkerTool', (f) => E.removeWorkerTool(f, k(f), 1)],
+  ];
+  for (const [name, edit] of cases) {
+    test(name, () => {
+      const f = withRows();
+      const before = structuredClone(f);
+      const after = edit(f);
+      expect(f).toEqual(before);
+      expect(after).not.toEqual(before);
+    });
+  }
 });

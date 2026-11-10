@@ -88,13 +88,26 @@ await withPage(async (page) => {
   await dialog.getByRole('textbox', { name: 'Id' }).fill(SAVED_ID);
   await dialog.getByRole('button', { name: 'Continue' }).click();
   await frame.waitForSelector('[data-status]:has-text("Valid — ready to save")', { timeout: 15_000 });
+  // A worker tool on `plan`: the live cc refuses an invalid pattern (its located error and the row note appear together), then accepts `Bash`/deny.
+  const plan = frame.getByRole('region', { name: 'Stage plan', exact: true });
+  await plan.getByRole('button', { name: 'Add worker tool' }).click();
+  const wtRow = plan.getByRole('group', { name: 'Worker tool 1', exact: true });
+  await wtRow.getByRole('textbox', { name: 'Pattern', exact: true }).fill('Bash(git:*)');
+  await wtRow.getByText(/use letters, digits/).waitFor();
+  await plan.locator('ul > li').filter({ hasText: /stage 'plan'/ }).first().waitFor({ timeout: 15_000 });
+  await wtRow.getByRole('textbox', { name: 'Pattern', exact: true }).fill('Bash');
+  await frame.waitForSelector('[data-status]:has-text("Valid — ready to save")', { timeout: 15_000 });
   await shot(page, '04-shell-editor');
   await frame.getByRole('button', { name: 'Save', exact: true }).click();
   await frame.getByText(`Saved ${SAVED_ID}.json.`).waitFor();
   if (SCRATCH) {
     const file = path.join(SCRATCH, '.code-conductor', 'playbooks', `${SAVED_ID}.json`);
-    assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).id, SAVED_ID, `saved into ${file}`);
+    const saved = JSON.parse(await fs.readFile(file, 'utf8'));
+    assert.equal(saved.id, SAVED_ID, `saved into ${file}`);
+    assert.deepEqual(saved.stages.plan.workerTools, { Bash: 'deny' }, 'the overlay file carries the worker tool');
   }
+  const served = await (await fetch(`${CC}/api/playbooks/${encodeURIComponent(SAVED_ID)}`)).json();
+  assert.deepEqual(served.stages.plan.workerTools, { Bash: 'deny' }, 'cc serves the saved worker tool');
   await frame.locator(`nav[aria-label="Playbooks"] button[data-id="${SAVED_ID}"]`).click();
   await frame.getByRole('button', { name: 'Delete', exact: true }).click();
   await frame.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();

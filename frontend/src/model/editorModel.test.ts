@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { loadFixtures } from '../../../tests/fixtures/fakeConductor.mjs';
 import { formFromDetail } from './formModel';
 import {
-  addableTools, canAddPin, editorNotices, editorStatus, idHint, pinArgOptions, policyOptions, positionMembers, viaOptions,
+  addableTools, canAddPin, WORKER_POLICY_OPTIONS, editorNotices, editorStatus, idHint, pinArgOptions, policyOptions, positionMembers, viaOptions,
 } from './editorModel';
 
 const { list, details } = await loadFixtures();
@@ -100,4 +100,9 @@ describe('option lists', () => {
   test('position members: every stage, then * labelled any stage (*)', () => {
     expect(positionMembers(['a', 'b'])).toEqual([{ value: 'a', label: 'a' }, { value: 'b', label: 'b' }, { value: '*', label: 'any stage (*)' }]);
   });
+});
+
+// Invariant: the worker-policy choices are exactly the protocol's value set, so no unrepresentable policy can be authored.
+test('WORKER_POLICY_OPTIONS offers exactly allow and deny', () => {
+  expect(WORKER_POLICY_OPTIONS.map((o) => o.value)).toEqual(['allow', 'deny']);
 });

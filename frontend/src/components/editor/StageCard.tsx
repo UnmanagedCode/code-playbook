@@ -15,6 +15,7 @@ import { ErrorList } from './ErrorList';
 import { Field } from './Field';
 import { NeedsRow } from './NeedsRow';
 import { ToolRow } from './ToolRow';
+import { WorkerTools } from './WorkerTools';
 import type { EditorApi } from './types';
 
 export function StageCard({ ed, stage, errors, renameDraft, renameError, onRenameDraft, onRenameCommit, onRemove }: {
@@ -97,6 +98,7 @@ export function StageCard({ ed, stage, errors, renameDraft, renameError, onRenam
           </NativeSelect>
         )}
       </div>
+      <WorkerTools ed={ed} stage={stage} />
     </section>
   );
 }

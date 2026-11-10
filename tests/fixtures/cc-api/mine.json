@@ -22,6 +22,7 @@
         "*": "allow",
         "kill_instance": "deny"
       },
+      "workerTools": {},
       "description": "Spawn a drafting worker and brief it.",
       "spawnable": true
     },
@@ -40,6 +41,7 @@
       "tools": {
         "spawn_instance": "allow"
       },
+      "workerTools": {},
       "spawnable": true
     },
     "build": {
@@ -67,6 +69,7 @@
         },
         "set_mode": "deny"
       },
+      "workerTools": {},
       "description": "Hand the draft to a fresh builder.",
       "spawnable": true
     },
@@ -76,6 +79,7 @@
       "tools": {
         "spawn_instance": "deny"
       },
+      "workerTools": {},
       "description": "Park the builder until the next round.",
       "spawnable": false
     }

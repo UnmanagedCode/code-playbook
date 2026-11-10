@@ -1,12 +1,16 @@
 // The editor's derived text and option lists. Pure: the editor component and
 // its tests read them from here.
 import { idNotices, SEND_PROMPT, SPAWN, WILDCARD } from './formModel';
+import { WORKER_TOOLS_EXEMPT } from './workerTools';
 import { driftWarning, renameWarning } from './wording';
 import type { Form, FormStage, IdNotices, TakenIds, ToolRow } from './types';
 
 export const VALIDATE_DEBOUNCE_MS = 300;
 export const STAGE_DESC_HINT = 'Stage descriptions reach the conductor verbatim (its role prompt when this is the preferred playbook, and describe_playbook), so editing one changes what the conductor does.';
 export const SPAWN_HINT = 'A stage is spawnable only when spawn_instance is declared allow or pin; "*" never confers it.';
+
+export const WORKER_TOOLS_HINT = `Worker tools govern the worker's own tool calls (Tools govern the conductor's calls on it). A pattern matches the raw tool name, e.g. Edit or mcp__code-conductor__send_prompt; "*" is the only wildcard and "*" alone is the fallback. An unlisted tool is allowed. ${WORKER_TOOLS_EXEMPT.join(' and ')} are always allowed.`;
+export const WORKER_POLICY_OPTIONS: Option[] = [{ value: 'allow', label: 'allow' }, { value: 'deny', label: 'deny' }];
 
 export const idHint = (id: string) => `saved as <projects root>/.code-conductor/playbooks/${id || '<id>'}.json`;
 
